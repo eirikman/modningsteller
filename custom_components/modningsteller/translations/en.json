@@ -1,0 +1,125 @@
+{
+  "config": {
+    "flow_title": "Create maturation counter",
+    "step": {
+      "user": {
+        "title": "Create maturation counter",
+        "description": "Choose a temperature sensor and the counter settings.",
+        "data": {
+          "name": "Name",
+          "temperature_entity": "Temperature sensor",
+          "initial_degree_days": "Initial value",
+          "target_degree_days": "Target value",
+          "update_interval": "Update interval"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure maturation counter",
+        "description": "Change the temperature sensor or counter settings.",
+        "data": {
+          "temperature_entity": "Temperature sensor",
+          "initial_degree_days": "Initial value",
+          "target_degree_days": "Target value",
+          "update_interval": "Update interval"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "degree_days": {
+        "name": "Degree days"
+      },
+      "average_temperature": {
+        "name": "One-hour average temperature"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "running": "Running",
+          "paused": "Paused",
+          "target_reached": "Target reached",
+          "stopped": "Stopped"
+        }
+      },
+      "expected_finish": {
+        "name": "Estimated finish time"
+      },
+      "remaining_degree_days": {
+        "name": "Remaining degree days"
+      },
+      "start_time": {
+        "name": "Start time"
+      },
+      "elapsed_time": {
+        "name": "Elapsed time"
+      },
+      "last_event": {
+        "name": "Last event",
+        "state": {
+          "initialized": "Initialized",
+          "started": "Started",
+          "paused": "Paused",
+          "reset": "Reset",
+          "calibrated": "Calibrated",
+          "temperature_sensor_changed": "Temperature sensor changed",
+          "target_reached": "Target reached",
+          "sensor_health_changed": "Temperature sensor health changed",
+          "note_added": "Note added",
+          "note_cleared": "Note cleared"
+        }
+      },
+      "target_reached_time": {
+        "name": "Target reached"
+      },
+      "temperature_sensor_health": {
+        "name": "Temperature sensor health",
+        "state": {
+          "ok": "OK",
+          "stale": "Stale",
+          "unavailable": "Unavailable",
+          "unknown": "Unknown"
+        }
+      },
+      "last_valid_temperature_time": {
+        "name": "Last valid temperature reading"
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Start"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "reset": {
+        "name": "Reset"
+      },
+      "calibrate": {
+        "name": "Calibrate"
+      }
+    },
+    "number": {
+      "calibration_value": {
+        "name": "Calibration value"
+      }
+    },
+    "text": {
+      "calibration_comment": {
+        "name": "Calibration comment"
+      },
+      "note": {
+        "name": "Note"
+      }
+    },
+    "select": {
+      "temperature_sensor": {
+        "name": "Temperature sensor"
+      }
+    }
+  }
+}

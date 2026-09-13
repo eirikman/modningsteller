@@ -1,0 +1,112 @@
+# Dashboard-mal for Modningsteller.
+# Forutsetter at decluttering-card, modern-circular-gauge og bubble-card er installert.
+# Bruk f.eks.:
+#
+# type: custom:decluttering-card
+# template: modningsteller
+# variables:
+#   - id: rype
+
+decluttering_templates:
+  modningsteller:
+    card:
+      type: vertical-stack
+      cards:
+        - type: custom:modern-circular-gauge
+          entity: sensor.[[id]]_dogngrader
+          secondary:
+            entity: sensor.[[id]]_forventet_ferdigtid
+            state_size: small
+            smooth_segments: false
+            show_seconds: false
+            adaptive_state_color: false
+            inverted_mode: false
+            show_in_graph: false
+            adaptive_graph_range: false
+            label: Forventet ferdig
+          max: 80
+          tertiary:
+            entity: sensor.[[id]]_gjenstaende_dogngrader
+            show_state: true
+            unit_superscript: true
+            decimals: 1
+            label: Gjenstående
+          segments:
+            - from: 0
+              color: [10, 235, 119]
+            - from: 40
+              color: [220, 9, 9]
+          header_position: top
+          show_icon: true
+          show_header: false
+          needle: true
+          start_from_zero: false
+          show_state: true
+          show_unit: true
+          unit_superscript: true
+          adaptive_state_color: false
+          show_seconds: false
+          adaptive_label_color: false
+          decimals: 1
+          adaptive_graph_range: false
+          show_graph: false
+
+        - type: horizontal-stack
+          cards:
+            - type: tile
+              entity: button.[[id]]_start
+              name: Start
+            - type: tile
+              entity: button.[[id]]_pause
+              name: Pause
+            - type: tile
+              entity: button.[[id]]_nullstill
+              name: Reset
+
+        - type: entities
+          entities:
+            - entity: sensor.[[id]]_status
+            - entity: sensor.[[id]]_temperatursensorstatus
+            - entity: sensor.[[id]]_siste_gyldige_temperaturavlesning
+            - entity: sensor.[[id]]_middeltemperatur_siste_time
+
+        - type: custom:bubble-card
+          card_type: separator
+          name: Temperatursensor
+
+        - type: tile
+          entity: select.[[id]]_temperatursensor
+          name: Velg temperatursensor
+
+        - type: custom:bubble-card
+          card_type: separator
+          name: Kalibrering
+
+        - type: horizontal-stack
+          cards:
+            - type: tile
+              entity: number.[[id]]_kalibreringsverdi
+            - type: tile
+              entity: button.[[id]]_kalibrer
+              name: Kalibrer
+
+        - type: tile
+          entity: text.[[id]]_kalibreringskommentar
+
+        - type: custom:bubble-card
+          card_type: separator
+          name: Notat
+
+        - type: tile
+          entity: text.[[id]]_notat
+
+        - type: entities
+          entities:
+            - entity: sensor.[[id]]_dogngrader
+            - entity: sensor.[[id]]_gjenstaende_dogngrader
+            - entity: sensor.[[id]]_forlopt_tid
+            - entity: sensor.[[id]]_starttidspunkt
+            - entity: sensor.[[id]]_forventet_ferdigtid
+            - entity: sensor.[[id]]_mal_nadd
+            - entity: sensor.[[id]]_siste_hendelse
+            - entity: sensor.[[id]]_notat

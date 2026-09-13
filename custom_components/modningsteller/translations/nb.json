@@ -1,0 +1,125 @@
+{
+  "config": {
+    "flow_title": "Opprett mørningsteller",
+    "step": {
+      "user": {
+        "title": "Opprett mørningsteller",
+        "description": "Velg temperatursensor og innstillinger for telleren.",
+        "data": {
+          "name": "Navn",
+          "temperature_entity": "Temperatursensor",
+          "initial_degree_days": "Startverdi",
+          "target_degree_days": "Målverdi",
+          "update_interval": "Oppdateringsintervall"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Konfigurer mørningsteller",
+        "description": "Endre temperatursensor eller innstillinger for telleren.",
+        "data": {
+          "temperature_entity": "Temperatursensor",
+          "initial_degree_days": "Startverdi",
+          "target_degree_days": "Målverdi",
+          "update_interval": "Oppdateringsintervall"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "degree_days": {
+        "name": "Døgngrader"
+      },
+      "average_temperature": {
+        "name": "Middeltemperatur siste time"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "running": "Pågår",
+          "paused": "Pauset",
+          "target_reached": "Mål nådd",
+          "stopped": "Stoppet"
+        }
+      },
+      "expected_finish": {
+        "name": "Forventet ferdigtid"
+      },
+      "remaining_degree_days": {
+        "name": "Gjenstående døgngrader"
+      },
+      "start_time": {
+        "name": "Starttidspunkt"
+      },
+      "elapsed_time": {
+        "name": "Forløpt tid"
+      },
+      "last_event": {
+        "name": "Siste hendelse",
+        "state": {
+          "initialized": "Initialisert",
+          "started": "Startet",
+          "paused": "Pauset",
+          "reset": "Nullstilt",
+          "calibrated": "Kalibrert",
+          "temperature_sensor_changed": "Temperatursensor byttet",
+          "target_reached": "Mål nådd",
+          "sensor_health_changed": "Temperatursensorstatus endret",
+          "note_added": "Notat lagt til",
+          "note_cleared": "Notat slettet"
+        }
+      },
+      "target_reached_time": {
+        "name": "Mål nådd"
+      },
+      "temperature_sensor_health": {
+        "name": "Temperatursensorstatus",
+        "state": {
+          "ok": "OK",
+          "stale": "Utdatert",
+          "unavailable": "Utilgjengelig",
+          "unknown": "Ukjent"
+        }
+      },
+      "last_valid_temperature_time": {
+        "name": "Siste gyldige temperaturavlesning"
+      }
+    },
+    "button": {
+      "start": {
+        "name": "Start"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "reset": {
+        "name": "Nullstill"
+      },
+      "calibrate": {
+        "name": "Kalibrer"
+      }
+    },
+    "number": {
+      "calibration_value": {
+        "name": "Kalibreringsverdi"
+      }
+    },
+    "text": {
+      "calibration_comment": {
+        "name": "Kalibreringskommentar"
+      },
+      "note": {
+        "name": "Notat"
+      }
+    },
+    "select": {
+      "temperature_sensor": {
+        "name": "Temperatursensor"
+      }
+    }
+  }
+}
