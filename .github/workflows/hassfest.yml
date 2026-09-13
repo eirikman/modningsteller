@@ -1,6 +1,8 @@
 name: Hassfest
 
 on:
+  env:
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   push:
   pull_request:
   schedule:
@@ -17,7 +19,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Run hassfest
         uses: home-assistant/actions/hassfest@master

@@ -5,9 +5,13 @@
   "config_flow": true,
   "integration_type": "hub",
   "iot_class": "local_polling",
+  "documentation": "https://github.com/eirikman/modningsteller",
+  "issue_tracker": "https://github.com/eirikman/modningsteller/issues",
+  "codeowners": [
+    "@eirikman"
+  ],
   "dependencies": [
     "recorder",
     "persistent_notification"
-  ],
-  "codeowners": []
+  ]
 }

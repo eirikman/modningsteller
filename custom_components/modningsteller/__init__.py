@@ -118,10 +118,6 @@ async def _async_target_reached(hass: HomeAssistant, entry: ConfigEntry) -> None
 
 
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the Modningsteller integration."""
-    return True
-
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Modningsteller from a config entry."""
