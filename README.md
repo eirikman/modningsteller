@@ -291,7 +291,7 @@ The integration is developed for modern Home Assistant versions and is currently
 
 ## License
 
-License information will be added before the project is published publicly.
+Modningsteller is licensed under the [MIT License](LICENSE).
 
 ## Disclaimer
 
