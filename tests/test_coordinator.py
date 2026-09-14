@@ -162,10 +162,10 @@ async def test_target_reached_notifies_once_and_counter_continues(
     assert target_callback.await_count == 1
 
 
-async def test_stale_temperature_sensor_stops_accumulation(
+async def test_stale_temperature_sensor_uses_last_known_temperature(
     hass: HomeAssistant, coordinator, freezer
 ) -> None:
-    """A stale temperature reading must prevent degree-day accumulation."""
+    """A stale temperature reading continues using the last known temperature."""
     freezer.move_to("2026-09-14 12:00:00+00:00")
     old_timestamp = dt_util.utcnow() - timedelta(hours=3)
     hass.states.async_set(
@@ -176,12 +176,15 @@ async def test_stale_temperature_sensor_stops_accumulation(
     )
     coordinator.degree_days = 5.0
     coordinator.last_update = dt_util.utcnow() - timedelta(hours=1)
+    coordinator.last_valid_temperature = 4.0
+    coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(hours=3)
+    coordinator._async_update_average = AsyncMock()
 
     await coordinator._async_update_data()
 
     assert coordinator.temperature_sensor_health == "stale"
-    assert coordinator.degree_days == pytest.approx(5.0)
-    assert coordinator.average_temperature is None
+    assert coordinator.degree_days == pytest.approx(5.0 + 4.0 / 24.0)
+    assert coordinator.average_temperature == pytest.approx(4.0)
 
 
 async def test_temperature_sensor_change_preserves_value_and_history(
@@ -301,13 +304,14 @@ async def test_target_reached_event_contains_running_target_status(
     assert event_data["degree_days"] == pytest.approx(1.0)
 
 
-async def test_unavailable_temperature_sensor_does_not_accumulate(
+async def test_unavailable_temperature_sensor_uses_last_known_temperature(
     hass: HomeAssistant, coordinator, freezer
 ) -> None:
-    """An unavailable temperature sensor must not add degree days."""
+    """An unavailable temperature sensor continues using the last known temperature."""
     freezer.move_to("2026-09-14 12:00:00+00:00")
     coordinator.degree_days = 8.0
-    coordinator.average_temperature = 5.0
+    coordinator.last_valid_temperature = 5.0
+    coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(hours=1)
     coordinator.last_update = dt_util.utcnow() - timedelta(hours=2)
     hass.states.async_set(
         "sensor.test_temperature",
@@ -318,8 +322,8 @@ async def test_unavailable_temperature_sensor_does_not_accumulate(
     await coordinator._async_update_data()
 
     assert coordinator.temperature_sensor_health == "unavailable"
-    assert coordinator.degree_days == pytest.approx(8.0)
-    assert coordinator.average_temperature is None
+    assert coordinator.degree_days == pytest.approx(8.0 + 5.0 * 2 / 24.0)
+    assert coordinator.average_temperature == pytest.approx(5.0)
 
 
 async def test_sensor_health_callback_fires_when_health_changes(
@@ -464,3 +468,61 @@ async def test_state_restores_running_values_from_store(hass: HomeAssistant, mod
     assert coordinator.run_started_at == stored_started
     assert coordinator.note == "Restored note"
     assert coordinator.last_update == dt_util.utcnow()
+
+
+async def test_reset_clears_active_calibration_and_note_fields(coordinator, freezer) -> None:
+    """Reset clears active calibration/comment/note fields but keeps history."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    coordinator.calibration_value = 17.5
+    coordinator.calibration_comment = "Calibration before reset"
+    coordinator.note = "Left hind leg"
+    coordinator.note_updated_at = dt_util.utcnow()
+    coordinator.calibration_history = [{"old_value": 1.0, "new_value": 2.0}]
+    coordinator.note_history = [{"note": "old note"}]
+    coordinator._async_update_average = AsyncMock()
+
+    await coordinator.async_reset()
+
+    assert coordinator.calibration_value == 0.0
+    assert coordinator.calibration_comment == ""
+    assert coordinator.note == ""
+    assert coordinator.note_updated_at is None
+    assert coordinator.calibration_history
+    assert coordinator.note_history
+
+
+async def test_sensor_stale_timeout_is_configurable_and_persisted(coordinator) -> None:
+    """Sensor stale timeout can be changed at runtime and saved to options."""
+    coordinator._store.async_save = AsyncMock()
+
+    await coordinator.async_set_sensor_stale_minutes(360)
+
+    assert coordinator.sensor_stale_minutes == 360
+    assert coordinator.temperature_sensor_stale_after_seconds == pytest.approx(21600.0)
+    assert coordinator.entry.options["sensor_stale_minutes"] == 360
+
+
+async def test_unavailable_temperature_sensor_notifies_but_uses_last_known_value(
+    hass: HomeAssistant, coordinator, freezer
+) -> None:
+    """Unavailable health notifies while the last known temperature remains usable."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    callback = AsyncMock()
+    coordinator.on_sensor_health_changed = callback
+    coordinator.last_valid_temperature = 3.5
+    coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(minutes=30)
+    coordinator.last_update = dt_util.utcnow() - timedelta(minutes=20)
+    hass.states.async_set(
+        "sensor.test_temperature",
+        "unavailable",
+        {"device_class": "temperature"},
+    )
+
+    await coordinator._async_update_data()
+    await hass.async_block_till_done()
+
+    assert coordinator.temperature_sensor_health == "unavailable"
+    assert coordinator.average_temperature == pytest.approx(3.5)
+    assert coordinator.degree_days == pytest.approx(3.5 * 20 / 1440)
+    assert callback.await_count == 1
+    assert callback.await_args.args[:2] == ("unknown", "unavailable")

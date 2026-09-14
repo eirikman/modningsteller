@@ -10,7 +10,11 @@
           "temperature_entity": "Temperature sensor",
           "initial_degree_days": "Initial value",
           "target_degree_days": "Target value",
-          "update_interval": "Update interval"
+          "update_interval": "Update interval",
+          "sensor_stale_minutes": "Sensor stale timeout"
+        },
+        "data_description": {
+          "sensor_stale_minutes": "Minutes without a new temperature reading before the sensor is marked stale. The counter continues using the last known temperature when available."
         }
       }
     }
@@ -24,7 +28,11 @@
           "temperature_entity": "Temperature sensor",
           "initial_degree_days": "Initial value",
           "target_degree_days": "Target value",
-          "update_interval": "Update interval"
+          "update_interval": "Update interval",
+          "sensor_stale_minutes": "Sensor stale timeout"
+        },
+        "data_description": {
+          "sensor_stale_minutes": "Minutes without a new temperature reading before the sensor is marked stale. The counter continues using the last known temperature when available."
         }
       }
     }
@@ -106,6 +114,9 @@
     "number": {
       "calibration_value": {
         "name": "Calibration value"
+      },
+      "sensor_stale_minutes": {
+        "name": "Sensor stale timeout"
       }
     },
     "text": {

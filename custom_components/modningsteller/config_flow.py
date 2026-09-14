@@ -6,23 +6,40 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
 from homeassistant.const import CONF_NAME
+from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
     CONF_INITIAL_DEGREE_DAYS,
+    CONF_SENSOR_STALE_MINUTES,
     CONF_TARGET_DEGREE_DAYS,
     CONF_TEMPERATURE_ENTITY,
     CONF_UPDATE_INTERVAL,
     DEFAULT_INITIAL_DEGREE_DAYS,
+    DEFAULT_SENSOR_STALE_MINUTES,
     DEFAULT_TARGET_DEGREE_DAYS,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    MAX_SENSOR_STALE_MINUTES,
     MAX_UPDATE_INTERVAL,
+    MIN_SENSOR_STALE_MINUTES,
     MIN_TARGET_DEGREE_DAYS,
     MIN_UPDATE_INTERVAL,
 )
+
+
+def _sensor_stale_minutes_selector() -> selector.NumberSelector:
+    """Return the selector for the stale timeout."""
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=MIN_SENSOR_STALE_MINUTES,
+            max=MAX_SENSOR_STALE_MINUTES,
+            step=1,
+            mode=selector.NumberSelectorMode.BOX,
+            unit_of_measurement="min",
+        )
+    )
 
 
 class ModningstellerOptionsFlowHandler(config_entries.OptionsFlowWithReload):
@@ -31,7 +48,7 @@ class ModningstellerOptionsFlowHandler(config_entries.OptionsFlowWithReload):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        """Allow changing the temperature sensor and runtime settings."""
+        """Allow changing runtime settings."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
@@ -42,66 +59,34 @@ class ModningstellerOptionsFlowHandler(config_entries.OptionsFlowWithReload):
             {
                 vol.Required(
                     CONF_TEMPERATURE_ENTITY,
-                    default=current.get(
-                        CONF_TEMPERATURE_ENTITY, data[CONF_TEMPERATURE_ENTITY]
-                    ),
+                    default=current.get(CONF_TEMPERATURE_ENTITY, data[CONF_TEMPERATURE_ENTITY]),
                 ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain="sensor",
-                        device_class="temperature",
-                    )
+                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
                 vol.Required(
                     CONF_INITIAL_DEGREE_DAYS,
-                    default=float(
-                        current.get(
-                            CONF_INITIAL_DEGREE_DAYS, data[CONF_INITIAL_DEGREE_DAYS]
-                        )
-                    ),
+                    default=float(current.get(CONF_INITIAL_DEGREE_DAYS, data[CONF_INITIAL_DEGREE_DAYS])),
                 ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=0,
-                        max=10000,
-                        step=0.1,
-                        mode=selector.NumberSelectorMode.BOX,
-                        unit_of_measurement="°C·d",
-                    )
+                    selector.NumberSelectorConfig(min=0, max=10000, step=0.1, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="°C·d")
                 ),
                 vol.Required(
                     CONF_TARGET_DEGREE_DAYS,
-                    default=float(
-                        current.get(
-                            CONF_TARGET_DEGREE_DAYS, data[CONF_TARGET_DEGREE_DAYS]
-                        )
-                    ),
+                    default=float(current.get(CONF_TARGET_DEGREE_DAYS, data[CONF_TARGET_DEGREE_DAYS])),
                 ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=MIN_TARGET_DEGREE_DAYS,
-                        max=10000,
-                        step=0.1,
-                        mode=selector.NumberSelectorMode.BOX,
-                        unit_of_measurement="°C·d",
-                    )
+                    selector.NumberSelectorConfig(min=MIN_TARGET_DEGREE_DAYS, max=10000, step=0.1, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="°C·d")
                 ),
                 vol.Required(
                     CONF_UPDATE_INTERVAL,
-                    default=int(
-                        current.get(
-                            CONF_UPDATE_INTERVAL, data[CONF_UPDATE_INTERVAL]
-                        )
-                    ),
+                    default=int(current.get(CONF_UPDATE_INTERVAL, data[CONF_UPDATE_INTERVAL])),
                 ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=MIN_UPDATE_INTERVAL,
-                        max=MAX_UPDATE_INTERVAL,
-                        step=1,
-                        mode=selector.NumberSelectorMode.BOX,
-                        unit_of_measurement="min",
-                    )
+                    selector.NumberSelectorConfig(min=MIN_UPDATE_INTERVAL, max=MAX_UPDATE_INTERVAL, step=1, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="min")
                 ),
+                vol.Required(
+                    CONF_SENSOR_STALE_MINUTES,
+                    default=int(current.get(CONF_SENSOR_STALE_MINUTES, data.get(CONF_SENSOR_STALE_MINUTES, DEFAULT_SENSOR_STALE_MINUTES))),
+                ): _sensor_stale_minutes_selector(),
             }
         )
-
         return self.async_show_form(step_id="init", data_schema=schema)
 
 
@@ -112,9 +97,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
-    ) -> config_entries.OptionsFlow:
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
         """Create the options flow."""
         return ModningstellerOptionsFlowHandler()
 
@@ -123,10 +106,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.ConfigFlowResult:
         """Handle the initial step."""
         if user_input is not None:
-            return self.async_create_entry(
-                title=user_input[CONF_NAME],
-                data=user_input,
-            )
+            return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
 
         schema = vol.Schema(
             {
@@ -134,48 +114,18 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                 ),
                 vol.Required(CONF_TEMPERATURE_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain="sensor",
-                        device_class="temperature",
-                    )
+                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
                 ),
-                vol.Required(
-                    CONF_INITIAL_DEGREE_DAYS,
-                    default=DEFAULT_INITIAL_DEGREE_DAYS,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=0,
-                        max=10000,
-                        step=0.1,
-                        mode=selector.NumberSelectorMode.BOX,
-                        unit_of_measurement="°C·d",
-                    )
+                vol.Required(CONF_INITIAL_DEGREE_DAYS, default=DEFAULT_INITIAL_DEGREE_DAYS): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=0, max=10000, step=0.1, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="°C·d")
                 ),
-                vol.Required(
-                    CONF_TARGET_DEGREE_DAYS,
-                    default=DEFAULT_TARGET_DEGREE_DAYS,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=MIN_TARGET_DEGREE_DAYS,
-                        max=10000,
-                        step=0.1,
-                        mode=selector.NumberSelectorMode.BOX,
-                        unit_of_measurement="°C·d",
-                    )
+                vol.Required(CONF_TARGET_DEGREE_DAYS, default=DEFAULT_TARGET_DEGREE_DAYS): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=MIN_TARGET_DEGREE_DAYS, max=10000, step=0.1, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="°C·d")
                 ),
-                vol.Required(
-                    CONF_UPDATE_INTERVAL,
-                    default=DEFAULT_UPDATE_INTERVAL,
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=MIN_UPDATE_INTERVAL,
-                        max=MAX_UPDATE_INTERVAL,
-                        step=1,
-                        mode=selector.NumberSelectorMode.BOX,
-                        unit_of_measurement="min",
-                    )
+                vol.Required(CONF_UPDATE_INTERVAL, default=DEFAULT_UPDATE_INTERVAL): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=MIN_UPDATE_INTERVAL, max=MAX_UPDATE_INTERVAL, step=1, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="min")
                 ),
+                vol.Required(CONF_SENSOR_STALE_MINUTES, default=DEFAULT_SENSOR_STALE_MINUTES): _sensor_stale_minutes_selector(),
             }
         )
-
         return self.async_show_form(step_id="user", data_schema=schema)

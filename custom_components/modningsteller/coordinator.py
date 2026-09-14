@@ -20,6 +20,9 @@ from .const import (
     CONF_TEMPERATURE_ENTITY,
     CONF_UPDATE_INTERVAL,
     DEFAULT_SENSOR_STALE_MINUTES,
+    CONF_SENSOR_STALE_MINUTES,
+    MIN_SENSOR_STALE_MINUTES,
+    MAX_SENSOR_STALE_MINUTES,
     DOMAIN,
     STORAGE_KEY_PREFIX,
     STORAGE_VERSION,
@@ -38,6 +41,7 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.initial_degree_days = float(self._get_option(CONF_INITIAL_DEGREE_DAYS))
         self.target_degree_days = float(self._get_option(CONF_TARGET_DEGREE_DAYS))
         self.update_interval_minutes = int(self._get_option(CONF_UPDATE_INTERVAL))
+        self.sensor_stale_minutes = self._get_sensor_stale_minutes()
 
         self.degree_days = float(entry.data[CONF_INITIAL_DEGREE_DAYS])
         self.average_temperature: float | None = None
@@ -87,7 +91,19 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _get_option(self, key: str) -> Any:
         """Return an option, falling back to the original config data."""
-        return self.entry.options.get(key, self.entry.data[key])
+        return self.entry.options.get(key, self.entry.data.get(key))
+
+    def _get_sensor_stale_minutes(self) -> int:
+        """Return the configured stale timeout in minutes."""
+        raw_value = self.entry.options.get(
+            CONF_SENSOR_STALE_MINUTES,
+            self.entry.data.get(CONF_SENSOR_STALE_MINUTES, DEFAULT_SENSOR_STALE_MINUTES),
+        )
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            value = DEFAULT_SENSOR_STALE_MINUTES
+        return min(max(value, MIN_SENSOR_STALE_MINUTES), MAX_SENSOR_STALE_MINUTES)
 
     async def _async_setup(self) -> None:
         """Load persisted state."""
@@ -212,10 +228,22 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     @property
     def temperature_sensor_stale_after_seconds(self) -> float:
         """Return how old a temperature reading may be before it is stale."""
-        return max(
-            float(self.update_interval_minutes * 3 * 60),
-            DEFAULT_SENSOR_STALE_MINUTES * 60.0,
-        )
+        return float(self.sensor_stale_minutes * 60)
+
+    async def async_set_sensor_stale_minutes(self, value: int) -> None:
+        """Set and persist the sensor stale timeout."""
+        value = int(value)
+        if not MIN_SENSOR_STALE_MINUTES <= value <= MAX_SENSOR_STALE_MINUTES:
+            raise ValueError(
+                f"Sensor stale timeout must be between {MIN_SENSOR_STALE_MINUTES} and "
+                f"{MAX_SENSOR_STALE_MINUTES} minutes"
+            )
+        self.sensor_stale_minutes = value
+        options = dict(self.entry.options)
+        options[CONF_SENSOR_STALE_MINUTES] = value
+        self.hass.config_entries.async_update_entry(self.entry, options=options)
+        await self._async_save_state()
+        self.async_set_updated_data(self._data())
 
     def _set_sensor_health(
         self, health: str, now: datetime, reason: str | None = None
@@ -244,77 +272,80 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         now = dt_util.utcnow()
 
         current_state = self.hass.states.get(self.temperature_entity)
+        current_value: float | None = None
+        health = "ok"
+        reason: str | None = None
+
         if current_state is None or current_state.state in {"unknown", "unavailable"}:
-            self.last_temperature_age_seconds = None
-            self._set_sensor_health("unavailable", now, "state_unavailable")
-            self.average_temperature = None
-            if self.running:
-                self.last_update = now
-            await self._async_save_state()
-            return self._data()
+            health = "unavailable"
+            reason = "state_unavailable"
+        else:
+            try:
+                current_value = float(current_state.state)
+            except (TypeError, ValueError):
+                current_value = None
+            if current_value is None or not -100 < current_value < 100:
+                current_value = None
+                health = "unavailable"
+                reason = "invalid_temperature"
 
-        try:
-            current_value = float(current_state.state)
-        except (TypeError, ValueError):
-            current_value = None
-
-        if current_value is None or not -100 < current_value < 100:
-            self.last_temperature_age_seconds = None
-            self._set_sensor_health("unavailable", now, "invalid_temperature")
-            self.average_temperature = None
-            if self.running:
-                self.last_update = now
-            await self._async_save_state()
-            return self._data()
-
-        self.last_temperature_age_seconds = max(
-            (now - current_state.last_updated).total_seconds(), 0.0
-        )
-        self.last_valid_temperature = current_value
-        self.last_valid_temperature_at = current_state.last_updated
-
-        if self.last_temperature_age_seconds > self.temperature_sensor_stale_after_seconds:
-            self._set_sensor_health(
-                "stale",
-                now,
-                "reading_too_old",
+        if current_value is not None and current_state is not None:
+            self.last_temperature_age_seconds = max(
+                (now - current_state.last_updated).total_seconds(), 0.0
             )
-            self.average_temperature = None
-            if self.running:
-                self.last_update = now
-            await self._async_save_state()
-            return self._data()
+            self.last_valid_temperature = current_value
+            self.last_valid_temperature_at = current_state.last_updated
+            if self.last_temperature_age_seconds > self.temperature_sensor_stale_after_seconds:
+                health = "stale"
+                reason = "reading_too_old"
+        else:
+            self.last_temperature_age_seconds = (
+                max((now - self.last_valid_temperature_at).total_seconds(), 0.0)
+                if self.last_valid_temperature_at is not None
+                else None
+            )
 
-        self._set_sensor_health("ok", now)
+        if health != "ok":
+            self._set_sensor_health(health, now, reason)
+            # Continue with the last known valid temperature when one exists.
+            if self.last_valid_temperature is None:
+                self.average_temperature = None
+                if self.running:
+                    self.last_update = now
+                await self._async_save_state()
+                return self._data()
+            self.average_temperature = self.last_valid_temperature
+        else:
+            self._set_sensor_health("ok", now)
+            try:
+                await self._async_update_average(now, current_value)
+            except UpdateFailed as err:
+                # Recorder/history can fail independently of the live sensor.
+                # Use the last known value rather than creating a long gap.
+                self._set_sensor_health("stale", now, "temperature_history_unavailable")
+                if self.last_valid_temperature is None:
+                    self.average_temperature = None
+                    if self.running:
+                        self.last_update = now
+                    await self._async_save_state()
+                    _LOGGER.warning("Modningsteller update skipped: %s", err)
+                    return self._data()
+                self.average_temperature = self.last_valid_temperature
 
-        try:
-            await self._async_update_average(now, current_value)
-        except UpdateFailed as err:
-            # Do not allow a temporary sensor/recorder failure to accumulate a
-            # large, misleading amount later. The interval is simply skipped.
-            self.average_temperature = None
-            if self.running:
-                self.last_update = now
-            await self._async_save_state()
-            _LOGGER.warning("Modningsteller update skipped: %s", err)
-            return self._data()
+        if self.running and self.last_update is not None and self.average_temperature is not None:
+            elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
+            self.active_seconds += elapsed_seconds
+            self.degree_days += self.average_temperature * (elapsed_seconds / 86400)
 
-        if self.running:
-            if self.last_update is not None:
-                elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
-                self.active_seconds += elapsed_seconds
-                elapsed_days = elapsed_seconds / 86400
-                self.degree_days += self.average_temperature * elapsed_days
-
-                # The target is a notification threshold, not a stop condition.
-                if self.degree_days >= self.target_degree_days and not self.reached_target:
-                    self.reached_target = True
-                    self.target_reached_at = now
-                    self._set_event("target_reached", now, {"degree_days": round(self.degree_days, 3)})
-                    if not self.target_notification_sent:
-                        self.target_notification_sent = True
-                        if self.on_target_reached is not None:
-                            self.hass.async_create_task(self.on_target_reached())
+            # The target is a notification threshold, not a stop condition.
+            if self.degree_days >= self.target_degree_days and not self.reached_target:
+                self.reached_target = True
+                self.target_reached_at = now
+                self._set_event("target_reached", now, {"degree_days": round(self.degree_days, 3)})
+                if not self.target_notification_sent:
+                    self.target_notification_sent = True
+                    if self.on_target_reached is not None:
+                        self.hass.async_create_task(self.on_target_reached())
             self.last_update = now
 
         if (
@@ -356,6 +387,8 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "last_valid_temperature": self.last_valid_temperature,
             "last_valid_temperature_at": self.last_valid_temperature_at,
             "last_temperature_age_seconds": self.last_temperature_age_seconds,
+            "sensor_stale_minutes": self.sensor_stale_minutes,
+            "sensor_stale_after_seconds": self.temperature_sensor_stale_after_seconds,
         }
 
     def _current_active_seconds(self) -> float:
@@ -597,8 +630,10 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.active_seconds = 0.0
         self.last_update = now
         self._temperature_window_start = None
-        self.calibration_value = self.degree_days
+        self.calibration_value = 0.0
         self.calibration_comment = ""
+        self.note = ""
+        self.note_updated_at = None
         self.calibration_history = []
         self._set_event("reset", now, {"initial_degree_days": self.degree_days})
 

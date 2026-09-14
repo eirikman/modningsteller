@@ -10,7 +10,11 @@
           "temperature_entity": "Temperatursensor",
           "initial_degree_days": "Startverdi",
           "target_degree_days": "Målverdi",
-          "update_interval": "Oppdateringsintervall"
+          "update_interval": "Oppdateringsintervall",
+          "sensor_stale_minutes": "Sensorhelse: utdatert etter"
+        },
+        "data_description": {
+          "sensor_stale_minutes": "Minutter uten ny temperaturverdi før sensoren merkes som utdatert. Telleren fortsetter med siste kjente temperatur når denne finnes."
         }
       }
     }
@@ -24,7 +28,11 @@
           "temperature_entity": "Temperatursensor",
           "initial_degree_days": "Startverdi",
           "target_degree_days": "Målverdi",
-          "update_interval": "Oppdateringsintervall"
+          "update_interval": "Oppdateringsintervall",
+          "sensor_stale_minutes": "Sensorhelse: utdatert etter"
+        },
+        "data_description": {
+          "sensor_stale_minutes": "Minutter uten ny temperaturverdi før sensoren merkes som utdatert. Telleren fortsetter med siste kjente temperatur når denne finnes."
         }
       }
     }
@@ -106,6 +114,9 @@
     "number": {
       "calibration_value": {
         "name": "Kalibreringsverdi"
+      },
+      "sensor_stale_minutes": {
+        "name": "Sensor timeout"
       }
     },
     "text": {

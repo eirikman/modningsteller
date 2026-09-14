@@ -38,6 +38,15 @@ def _notification_text(hass: HomeAssistant, entry: ConfigEntry, coordinator: Mod
     return title, message
 
 
+
+def _last_temperature_text(coordinator: ModningstellerCoordinator, norwegian: bool) -> str:
+    """Return a localized description of the last known temperature."""
+    if coordinator.last_valid_temperature is None:
+        return "Ingen gyldig temperatur er kjent." if norwegian else "No valid temperature is known."
+    if norwegian:
+        return f"Siste kjente temperatur er {coordinator.last_valid_temperature:.1f} °C."
+    return f"The last known temperature is {coordinator.last_valid_temperature:.1f} °C."
+
 def _sensor_health_notification_id(entry: ConfigEntry) -> str:
     return f"modningsteller_{entry.entry_id}_sensor_health"
 
@@ -63,19 +72,19 @@ def _sensor_health_notification_text(
             f"Temperature sensor is stale: {entry.title}",
             f"The temperature sensor {sensor_name} has not received a new value for more than "
             f"{coordinator.temperature_sensor_stale_after_seconds / 60:.0f} minutes. "
-            "Degree-day accumulation is temporarily paused to avoid incorrect accumulation.",
+            f"The counter continues using the last known temperature when available. {_last_temperature_text(coordinator, False)}",
         )
 
     if is_norwegian:
         return (
             f"Temperatursensor utilgjengelig: {entry.title}",
             f"Temperatursensoren {sensor_name} er utilgjengelig eller har en ugyldig verdi. "
-            "Døgngradtellingen er midlertidig satt på vent til sensoren fungerer igjen.",
+            f"Telleren fortsetter med siste kjente temperatur når denne finnes. {_last_temperature_text(coordinator, True)}",
         )
     return (
         f"Temperature sensor unavailable: {entry.title}",
         f"The temperature sensor {sensor_name} is unavailable or has an invalid value. "
-        "Degree-day accumulation is temporarily paused until the sensor recovers.",
+        f"The counter continues using the last known temperature when available. {_last_temperature_text(coordinator, False)}",
     )
 
 
@@ -115,7 +124,6 @@ async def _async_target_reached(hass: HomeAssistant, entry: ConfigEntry) -> None
         title=title,
         notification_id=_notification_id(entry),
     )
-
 
 
 

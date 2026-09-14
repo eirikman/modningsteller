@@ -21,7 +21,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up Modningsteller number entities."""
     coordinator: ModningstellerCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([CalibrationValueNumber(coordinator)])
+    async_add_entities([CalibrationValueNumber(coordinator), SensorStaleMinutesNumber(coordinator)])
 
 
 class CalibrationValueNumber(
@@ -59,3 +59,35 @@ class CalibrationValueNumber(
         self._value = round(float(value), 3)
         self.coordinator.calibration_value = self._value
         self.async_write_ha_state()
+
+
+class SensorStaleMinutesNumber(CoordinatorEntity[ModningstellerCoordinator], NumberEntity):
+    """Timeout before a temperature sensor is considered stale."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "sensor_stale_minutes"
+    _attr_icon = "mdi:timer-alert-outline"
+    _attr_native_min_value = 15
+    _attr_native_max_value = 1440
+    _attr_native_step = 1
+    _attr_mode = NumberMode.BOX
+    _attr_native_unit_of_measurement = "min"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator: ModningstellerCoordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.entry.entry_id}_sensor_stale_minutes"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, coordinator.entry.entry_id)},
+            name=coordinator.entry.title,
+            manufacturer="Modningsteller",
+            model="Mørningsteller",
+        )
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.sensor_stale_minutes
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Set and persist the sensor health timeout."""
+        await self.coordinator.async_set_sensor_stale_minutes(int(value))
