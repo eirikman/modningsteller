@@ -172,7 +172,7 @@ async def test_stale_temperature_sensor_stops_accumulation(
         "sensor.test_temperature",
         "4.0",
         {"device_class": "temperature"},
-        timestamp=old_timestamp,
+        timestamp=old_timestamp.timestamp(),
     )
     coordinator.degree_days = 5.0
     coordinator.last_update = dt_util.utcnow() - timedelta(hours=1)
@@ -285,7 +285,7 @@ async def test_target_reached_event_contains_running_target_status(
     )
 
     captured: list = []
-    hass.bus.async_listen_once(
+    hass.bus.async_listen(
         "modningsteller_event",
         lambda event: captured.append(event),
     )
@@ -293,8 +293,9 @@ async def test_target_reached_event_contains_running_target_status(
     await coordinator._async_update_data()
     await hass.async_block_till_done()
 
-    assert captured
-    event_data = captured[0].data
+    target_events = [event for event in captured if event.data.get("type") == "target_reached"]
+    assert target_events
+    event_data = target_events[0].data
     assert event_data["type"] == "target_reached"
     assert event_data["status"] == "target_reached"
     assert event_data["degree_days"] == pytest.approx(1.0)
