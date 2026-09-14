@@ -19,12 +19,14 @@ Modningsteller is designed for meat maturation where accumulated temperature exp
 - Change temperature sensor while a process is running
 - Rolling one-hour average temperature
 - Configurable calculation interval
+- Configurable temperature sensor health timeout per maturation counter
 - Start, pause and reset controls
 - Explicit process states:
   - Stopped
   - Running
   - Paused
   - Target reached
+- Pressing Start while already running has no effect
 - Degree-day accumulation continues after the target is reached
 - Notification when the target is reached
 - Estimated finish time
@@ -33,6 +35,7 @@ Modningsteller is designed for meat maturation where accumulated temperature exp
 - Timestamp for when the target was reached
 - Temperature sensor health monitoring
 - Detection of stale or unavailable temperature data
+- Continued accumulation using the last known temperature when the selected sensor is stale or unavailable
 - Calibration of accumulated degree days during an ongoing process
 - Calibration comments and history
 - Notes for the maturation process
@@ -112,12 +115,28 @@ Typical configuration options include:
 - Initial degree-day value
 - Target degree-day value
 - Calculation interval
+- Temperature sensor health timeout
 
 ### Temperature sensor
 
-The temperature sensor can also be changed while a maturation process is running.
+The temperature sensor can be changed while a process is running.
 
-When the sensor is changed, accumulated degree days and process timing are preserved. Temperature averaging starts using the new sensor so that historical data from different sensors is not mixed.
+When the sensor is changed:
+
+- accumulated degree days are preserved
+- process timing is preserved
+- the new sensor is used from the time of the change
+- temperature averaging starts using the new sensor so that historical data from different sensors is not mixed
+
+### Temperature sensor health timeout
+
+Each maturation counter has its own configurable stale-temperature timeout.
+
+The timeout determines how long the integration will wait for a new temperature value before the selected sensor is considered stale.
+
+The setting can be changed after the maturation counter has been created.
+
+This is particularly useful for battery-powered Zigbee temperature sensors, which may report relatively infrequently.
 
 ## Process controls
 
@@ -129,13 +148,24 @@ Pressing Start while the process is already running has no effect.
 
 ### Pause
 
-Stops degree-day accumulation and active-time counting while preserving the current process state.
+Stops degree-day accumulation and active-time counting while preserving the current process state and accumulated value.
 
 ### Reset
 
-Resets the process to its configured initial degree-day value and places it in the **Stopped** state.
+Resets the active maturation process to its configured initial state and places it in the **Stopped** state.
 
-Reset does not automatically start a new process.
+Reset performs the following:
+
+- restores the configured initial degree-day value
+- clears the active calibration value
+- clears the active calibration comment
+- clears the active maturation note
+- clears the current start time
+- clears active elapsed time
+- clears the target-reached state
+- does not automatically start a new process
+
+Historical calibration, note and event information is preserved.
 
 A new start time is created when Start is pressed after a reset.
 
@@ -166,6 +196,10 @@ Notes can be used for information such as:
 - Refrigerator changes
 - Other observations
 
+The current note can be cleared by resetting the maturation process.
+
+Historical note information is preserved as part of the process history.
+
 Notes are stored persistently and survive Home Assistant restarts.
 
 ## Temperature sensor health
@@ -179,11 +213,25 @@ The sensor health state can indicate conditions such as:
 - Unavailable
 - Unknown
 
-If temperature data is no longer considered valid, degree-day accumulation is paused to avoid accumulating incorrect values from a stale temperature reading.
+Each maturation counter has its own configurable stale-data timeout.
 
-This is intentionally tolerant of battery-powered Zigbee temperature sensors, which may report infrequently.
+### Stale temperature data
 
-The stale-data threshold is currently designed to allow relatively long reporting intervals.
+If the selected temperature sensor has not provided a new valid value within the configured timeout, the sensor is considered **Stale**.
+
+The integration continues accumulating degree days using the **last known valid temperature**.
+
+A sensor-health notification/event is generated when the sensor becomes stale.
+
+### Unavailable temperature data
+
+If the selected temperature entity becomes unavailable but a previous valid temperature is available, the integration continues using the last known valid temperature.
+
+A sensor-health notification/event is generated when the sensor becomes unavailable.
+
+When a new valid temperature becomes available, normal temperature processing resumes.
+
+If no valid temperature has ever been received, degree-day accumulation cannot begin until a valid temperature is available.
 
 ## Sensors
 
@@ -201,7 +249,7 @@ Depending on configuration and process state, a maturation counter provides enti
 - Last valid temperature reading
 - Last event
 
-Additional control entities are provided for:
+Additional control/configuration entities are provided for:
 
 - Start
 - Pause
@@ -209,6 +257,7 @@ Additional control entities are provided for:
 - Calibration
 - Notes
 - Temperature sensor selection
+- Temperature sensor health timeout
 
 ## Events
 
@@ -268,9 +317,17 @@ custom_components/modningsteller/
 
 dashboard/
     Optional Lovelace dashboard templates
+
+tests/
+    Automated integration tests
 ```
 
 Future development uses Git for version control and GitHub releases for versioned builds.
+
+The repository uses GitHub Actions for automated validation:
+
+- Hassfest
+- Pytest
 
 ## Versioning
 
@@ -284,8 +341,8 @@ Example:
 
 ```text
 v1.0.1
+v1.0.2
 v1.1.0
-v1.1.1
 ```
 
 ## Requirements
