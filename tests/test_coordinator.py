@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -169,16 +168,16 @@ async def test_stale_temperature_sensor_stops_accumulation(
     """A stale temperature reading must prevent degree-day accumulation."""
     freezer.move_to("2026-09-14 12:00:00+00:00")
     old_timestamp = dt_util.utcnow() - timedelta(hours=3)
-    stale_state = SimpleNamespace(
-        state="4.0",
-        attributes={"device_class": "temperature"},
-        last_updated=old_timestamp,
+    hass.states.async_set(
+        "sensor.test_temperature",
+        "4.0",
+        {"device_class": "temperature"},
+        timestamp=old_timestamp,
     )
     coordinator.degree_days = 5.0
     coordinator.last_update = dt_util.utcnow() - timedelta(hours=1)
 
-    with patch.object(hass.states, "get", return_value=stale_state):
-        await coordinator._async_update_data()
+    await coordinator._async_update_data()
 
     assert coordinator.temperature_sensor_health == "stale"
     assert coordinator.degree_days == pytest.approx(5.0)
