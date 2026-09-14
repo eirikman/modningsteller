@@ -634,7 +634,6 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.calibration_comment = ""
         self.note = ""
         self.note_updated_at = None
-        self.calibration_history = []
         self._set_event("reset", now, {"initial_degree_days": self.degree_days})
 
         # Refresh the rolling average immediately without accumulating time.
