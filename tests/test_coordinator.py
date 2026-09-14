@@ -172,7 +172,7 @@ async def test_stale_temperature_sensor_stops_accumulation(
         "sensor.test_temperature",
         "4.0",
         {"device_class": "temperature"},
-        timestamp=old_timestamp,
+        timestamp=old_timestamp.timestamp(),
     )
     coordinator.degree_days = 5.0
     coordinator.last_update = dt_util.utcnow() - timedelta(hours=1)
