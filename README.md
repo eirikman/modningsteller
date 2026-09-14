@@ -1,3 +1,6 @@
+[![Hassfest](https://github.com/eirikman/modningsteller/actions/workflows/hassfest.yml/badge.svg)](https://github.com/eirikman/modningsteller/actions/workflows/hassfest.yml)
+[![Tests](https://github.com/eirikman/modningsteller/actions/workflows/tests.yml/badge.svg)](https://github.com/eirikman/modningsteller/actions/workflows/tests.yml)
+
 # Modningsteller
 
 A Home Assistant custom integration for tracking the maturation of game meat using degree days and temperature history.
