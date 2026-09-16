@@ -3,6 +3,8 @@
 
 # Modningsteller
 
+![Example dashboard](image.png)
+
 A Home Assistant custom integration for tracking the maturation of game meat using degree days and temperature history.
 
 Modningsteller is designed for meat maturation where accumulated temperature exposure is used as an indicator of maturation progress. Each maturation process is independent and can use its own temperature sensor, target value and update interval.
@@ -279,7 +281,7 @@ These events can be used in Home Assistant automations.
 
 ## Dashboard
 
-An optional Lovelace dashboard template is included in:
+Optional Lovelace dashboard templates are included in:
 
     dashboard/modningsteller_decluttering.yaml
 
@@ -289,7 +291,7 @@ Example:
 
 ```yaml
 type: custom:decluttering-card
-template: modningsteller
+template: modningsteller_kontroll
 variables:
   - id: rype
 ```
@@ -300,12 +302,12 @@ For example:
 
 ```yaml
 type: custom:decluttering-card
-template: modningsteller
+template: modningsteller_kontroll
 variables:
   - id: hjortelar
 ```
 
-The dashboard template is optional. The integration itself does not depend on it.
+The dashboard templates are optional. The integration itself does not depend on them.
 
 ## Development
 
