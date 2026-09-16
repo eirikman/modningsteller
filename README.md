@@ -9,8 +9,11 @@ A Home Assistant custom integration for tracking the maturation of game meat usi
 
 Modningsteller is designed for meat maturation where accumulated temperature exposure is used as an indicator of maturation progress. Each maturation process is independent and can use its own temperature sensor, target value and update interval.
 
-> **Status:** Personal project / private repository  
-> The integration is currently developed for personal use. The project may be published to HACS at a later stage.
+> **Status:** Personal project / public beta
+
+> The integration is currently developed primarily for personal use.
+> It is shared publicly for testing and feedback.
+> HACS publication may be considered at a later stage.
 
 ## Features
 
