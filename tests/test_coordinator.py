@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from custom_components.modningsteller.const import CONF_TEMPERATURE_ENTITY
+from custom_components.modningsteller.coordinator import ModningstellerCoordinator
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -378,6 +379,86 @@ async def test_temperature_sensor_change_closes_old_interval_before_switch(
     assert (dt_util.utcnow() - coordinator._temperature_window_start).total_seconds() < 1
 
 
+async def test_temperature_sensor_change_persists_in_config_entry_options(
+    hass: HomeAssistant, coordinator, modning_entry
+) -> None:
+    """A dashboard sensor selection is persisted in ConfigEntry options."""
+    hass.states.async_set(
+        "sensor.other_temperature",
+        "5.0",
+        {"device_class": "temperature"},
+    )
+
+    await coordinator.async_change_temperature_entity("sensor.other_temperature")
+
+    assert (
+        modning_entry.options[CONF_TEMPERATURE_ENTITY]
+        == "sensor.other_temperature"
+    )
+
+    restored = ModningstellerCoordinator(hass, modning_entry)
+    assert restored.temperature_entity == "sensor.other_temperature"
+
+
+async def test_stored_temperature_sensor_is_migrated_to_config_entry_options(
+    hass: HomeAssistant, modning_entry, freezer
+) -> None:
+    """A legacy stored sensor selection is migrated to ConfigEntry options."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    hass.states.async_set(
+        "sensor.other_temperature",
+        "5.0",
+        {"device_class": "temperature"},
+    )
+
+    coordinator = ModningstellerCoordinator(hass, modning_entry)
+    stored = {
+        "temperature_entity": "sensor.other_temperature",
+        "degree_days": 10.0,
+        "running": False,
+        "stopped": True,
+    }
+    coordinator._store.async_load = AsyncMock(return_value=stored)
+    coordinator._store.async_save = AsyncMock()
+
+    await coordinator._async_setup()
+
+    assert coordinator.temperature_entity == "sensor.other_temperature"
+    assert (
+        modning_entry.options[CONF_TEMPERATURE_ENTITY]
+        == "sensor.other_temperature"
+    )
+
+
+async def test_explicit_temperature_option_takes_precedence_over_stored_sensor(
+    hass: HomeAssistant, modning_entry, freezer
+) -> None:
+    """An explicit Options Flow sensor setting remains authoritative."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    hass.config_entries.async_update_entry(
+        modning_entry,
+        options={CONF_TEMPERATURE_ENTITY: "sensor.configured_temperature"},
+    )
+
+    coordinator = ModningstellerCoordinator(hass, modning_entry)
+    stored = {
+        "temperature_entity": "sensor.other_temperature",
+        "degree_days": 10.0,
+        "running": False,
+        "stopped": True,
+    }
+    coordinator._store.async_load = AsyncMock(return_value=stored)
+    coordinator._store.async_save = AsyncMock()
+
+    await coordinator._async_setup()
+
+    assert coordinator.temperature_entity == "sensor.configured_temperature"
+    assert (
+        modning_entry.options[CONF_TEMPERATURE_ENTITY]
+        == "sensor.configured_temperature"
+    )
+
+
 async def test_calibration_crossing_target_notifies_once(
     coordinator, freezer
 ) -> None:
@@ -436,8 +517,6 @@ async def test_note_can_be_cleared_and_records_event(coordinator, freezer) -> No
 async def test_state_restores_running_values_from_store(hass: HomeAssistant, modning_entry, freezer) -> None:
     """Persisted process state is restored after a coordinator is recreated."""
     freezer.move_to("2026-09-14 12:00:00+00:00")
-    from custom_components.modningsteller.coordinator import ModningstellerCoordinator
-
     stored_started = dt_util.utcnow() - timedelta(hours=4)
     stored = {
         "degree_days": 23.5,
