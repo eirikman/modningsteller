@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.components.select import SelectEntity
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -44,12 +47,36 @@ class TemperatureSensorSelect(
         self._options: list[str] = []
         self._option_to_entity: dict[str, str] = {}
         self._entity_to_option: dict[str, str] = {}
+        self._cancel_start_listener = None
 
     async def async_added_to_hass(self) -> None:
         """Set up the select entity after it has access to Home Assistant."""
         await super().async_added_to_hass()
         self._update_options()
+
+        # Entity registry entries are normally available before the final
+        # Home Assistant started event. Refresh once after startup as well so
+        # entities that were registered during startup are included.
+        if self.hass.is_running:
+            self._update_options()
+        else:
+            self._cancel_start_listener = self.hass.bus.async_listen_once(
+                EVENT_HOMEASSISTANT_STARTED, self._async_home_assistant_started
+            )
+
         self.async_write_ha_state()
+
+    async def _async_home_assistant_started(self, event: Event) -> None:
+        """Refresh the sensor list after Home Assistant has finished starting."""
+        self._update_options()
+        self.async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Clean up the startup listener."""
+        if self._cancel_start_listener is not None:
+            self._cancel_start_listener()
+            self._cancel_start_listener = None
+        await super().async_will_remove_from_hass()
 
     @property
     def current_option(self) -> str:
@@ -64,53 +91,53 @@ class TemperatureSensorSelect(
 
     @callback
     def _sensor_display_name(self, entity_id: str) -> str:
-        """Return a user-friendly, unique display name for a temperature sensor."""
+        """Return a user-friendly sensor name, including the area when useful."""
+        entity_registry = er.async_get(self.hass)
+        entity_entry = entity_registry.async_get(entity_id)
         state = self.hass.states.get(entity_id)
-        if state is None:
-            return entity_id
 
-        # Prefer Home Assistant's display name instead of the entity ID.
-        name = state.name or entity_id
+        if state is not None:
+            name = state.name or entity_id
+        elif entity_entry is not None:
+            name = entity_entry.name or entity_entry.original_name or entity_id
+        else:
+            name = entity_id
 
-        # Add the area when available; this makes identically named sensors easy to
-        # distinguish without exposing entity IDs in the normal case.
-        try:
-            from homeassistant.helpers import area_registry as ar
-            from homeassistant.helpers import entity_registry as er
-
-            entity_registry = er.async_get(self.hass)
-            entity_entry = entity_registry.async_get(entity_id)
-            if entity_entry and entity_entry.area_id:
-                area_registry = ar.async_get(self.hass)
-                area = area_registry.async_get_area(entity_entry.area_id)
-                if area and area.name and area.name.lower() not in name.lower():
-                    name = f"{name} ({area.name})"
-        except Exception:  # pragma: no cover - defensive for registry availability
-            pass
+        if entity_entry is not None and entity_entry.area_id:
+            area_registry = ar.async_get(self.hass)
+            area = area_registry.async_get_area(entity_entry.area_id)
+            if area and area.name and area.name.lower() not in name.lower():
+                name = f"{name} ({area.name})"
 
         return name
 
     @callback
     def _update_options(self) -> None:
-        """Refresh available temperature sensors using the same basic filter as the UI selector."""
+        """Refresh available temperature sensors from registry and live states."""
         entities: dict[str, str] = {}
         current = self.coordinator.temperature_entity
 
-        for state in self.hass.states.async_all("sensor"):
-            # Match Home Assistant's temperature entity selection criteria.
-            if state.attributes.get("device_class") != "temperature":
+        # The entity registry is the authoritative list of registered entities
+        # and is available even when an entity has not yet published a state.
+        entity_registry = er.async_get(self.hass)
+        for entity_id, entry in entity_registry.entities.items():
+            if not entity_id.startswith("sensor.") or entry.disabled_by is not None:
                 continue
-
-            entity_id = state.entity_id
+            if (entry.device_class or entry.original_device_class) != "temperature":
+                continue
             entities[entity_id] = self._sensor_display_name(entity_id)
 
-        # Never lose the currently selected sensor from the list, even if it is
-        # temporarily unavailable or has otherwise disappeared from the state machine.
+        # Also include temperature sensors that are currently in the state
+        # machine but are not registered (for example some legacy/YAML entities).
+        for state in self.hass.states.async_all("sensor"):
+            if state.attributes.get("device_class") != "temperature":
+                continue
+            entities[state.entity_id] = self._sensor_display_name(state.entity_id)
+
+        # Never lose the currently selected sensor from the list.
         if current and current not in entities:
             entities[current] = self._sensor_display_name(current)
 
-        # Make display labels unique. In the rare case where two entities have the
-        # same name and area, append the entity ID only to the duplicate labels.
         grouped: dict[str, list[str]] = {}
         for entity_id, label in entities.items():
             grouped.setdefault(label, []).append(entity_id)
@@ -118,7 +145,6 @@ class TemperatureSensorSelect(
         self._option_to_entity.clear()
         self._entity_to_option.clear()
         options: list[str] = []
-
         for label, entity_ids in sorted(grouped.items(), key=lambda item: item[0].lower()):
             for entity_id in sorted(entity_ids):
                 option = label if len(entity_ids) == 1 else f"{label} — {entity_id}"
@@ -139,7 +165,6 @@ class TemperatureSensorSelect(
         entity_id = self._option_to_entity.get(option)
         if entity_id is None:
             return
-
         await self.coordinator.async_change_temperature_entity(entity_id)
         self._update_options()
         self.async_write_ha_state()

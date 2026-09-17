@@ -136,22 +136,6 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
             self._stored_temperature_entity = stored.get("temperature_entity")
 
-            # A temperature sensor selected from the dashboard was historically
-            # persisted only in the Modningsteller Store. Migrate that selection
-            # to ConfigEntry options so it survives Home Assistant restarts.
-            # An explicit Options Flow setting remains authoritative.
-            if (
-                self._stored_temperature_entity
-                and CONF_TEMPERATURE_ENTITY not in self.entry.options
-                and self._stored_temperature_entity != self.temperature_entity
-            ):
-                self.temperature_entity = self._stored_temperature_entity
-                options = dict(self.entry.options)
-                options[CONF_TEMPERATURE_ENTITY] = self.temperature_entity
-                self.hass.config_entries.async_update_entry(
-                    self.entry, options=options
-                )
-
             self.calibration_value = float(stored.get("calibration_value", self.degree_days))
             self.calibration_comment = str(stored.get("calibration_comment", ""))
             self.calibration_history = list(stored.get("calibration_history", []))[-20:]
@@ -476,15 +460,6 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self.hass.async_create_task(self.on_target_reached())
 
         self.temperature_entity = new_entity
-
-        # Persist dashboard sensor selection in ConfigEntry options so the
-        # selected sensor survives Home Assistant restarts.
-        options = dict(self.entry.options)
-        options[CONF_TEMPERATURE_ENTITY] = new_entity
-        self.hass.config_entries.async_update_entry(
-            self.entry, options=options
-        )
-
         self._temperature_window_start = now
         self.last_update = now
         self.average_temperature = None
