@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 import logging
 from typing import Any
@@ -33,6 +34,9 @@ _LOGGER = logging.getLogger(__name__)
 
 class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinate temperature history reads and degree-day accumulation."""
+
+    STARTUP_RETRY_INTERVAL_SECONDS = 15
+    STARTUP_RETRY_ATTEMPTS = 20  # Up to 5 minutes after Home Assistant starts.
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         self.hass = hass
@@ -74,6 +78,12 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._temperature_window_start: datetime | None = None
         self._stored_temperature_entity: str | None = None
+        # Home Assistant integrations that provide the selected temperature
+        # sensor may finish starting shortly after Modningsteller itself.
+        # Keep sensor health as unknown during this startup grace period so a
+        # transient startup race does not create a false unavailable alarm.
+        self._startup_grace_active = True
+        self._startup_retry_task: asyncio.Task[None] | None = None
         self.on_target_reached = None
         self.on_sensor_health_changed = None
         self._store = Store(
@@ -104,6 +114,22 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (TypeError, ValueError):
             value = DEFAULT_SENSOR_STALE_MINUTES
         return min(max(value, MIN_SENSOR_STALE_MINUTES), MAX_SENSOR_STALE_MINUTES)
+
+    async def async_startup_sensor_check(self) -> None:
+        """Refresh until the selected temperature sensor is ready after startup."""
+        try:
+            for _attempt in range(self.STARTUP_RETRY_ATTEMPTS):
+                await self.async_refresh()
+                if not self._startup_grace_active:
+                    return
+                await asyncio.sleep(self.STARTUP_RETRY_INTERVAL_SECONDS)
+
+            # The grace window has expired. Perform one final normal refresh so
+            # a genuinely unavailable sensor becomes visible and can notify.
+            self._startup_grace_active = False
+            await self.async_refresh()
+        except asyncio.CancelledError:
+            raise
 
     async def _async_setup(self) -> None:
         """Load persisted state."""
@@ -290,6 +316,9 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 reason = "invalid_temperature"
 
         if current_value is not None and current_state is not None:
+            # We have now received a real reading from the selected sensor.
+            # End the startup grace period permanently for this run.
+            self._startup_grace_active = False
             self.last_temperature_age_seconds = max(
                 (now - current_state.last_updated).total_seconds(), 0.0
             )
@@ -304,6 +333,19 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if self.last_valid_temperature_at is not None
                 else None
             )
+
+        # A selected temperature integration can become available a little
+        # later than Home Assistant itself. While the startup retry window is
+        # active, treat an unavailable/invalid live sensor as unknown. This
+        # prevents false alarms during startup while allowing genuine sensor
+        # failures to be reported normally afterward.
+        if self._startup_grace_active and health == "unavailable":
+            self._set_sensor_health("unknown", now, "home_assistant_starting")
+            self.average_temperature = None
+            if self.running:
+                self.last_update = now
+            await self._async_save_state()
+            return self._data()
 
         if health != "ok":
             self._set_sensor_health(health, now, reason)
