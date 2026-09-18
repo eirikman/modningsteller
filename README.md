@@ -141,6 +141,8 @@ The timeout determines how long the integration will wait for a new temperature 
 
 The setting can be changed after the maturation counter has been created.
 
+During Home Assistant startup, the sensor health may temporarily be reported as Unknown until the selected temperature sensor becomes available.
+
 This is particularly useful for battery-powered Zigbee temperature sensors, which may report relatively infrequently.
 
 ## Process controls
