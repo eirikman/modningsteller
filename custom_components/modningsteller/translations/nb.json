@@ -39,8 +39,12 @@
   },
   "entity": {
     "sensor": {
-      "degree_days": {"name": "Døgngrader"},
-      "average_temperature": {"name": "Middeltemperatur siste time"},
+      "degree_days": {
+        "name": "Døgngrader"
+      },
+      "average_temperature": {
+        "name": "Middeltemperatur siste time"
+      },
       "status": {
         "name": "Status",
         "state": {
@@ -50,10 +54,18 @@
           "stopped": "Stoppet"
         }
       },
-      "expected_finish": {"name": "Forventet ferdigtid"},
-      "remaining_degree_days": {"name": "Gjenstående døgngrader"},
-      "start_time": {"name": "Starttidspunkt"},
-      "elapsed_time": {"name": "Forløpt tid"},
+      "expected_finish": {
+        "name": "Forventet ferdigtid"
+      },
+      "remaining_degree_days": {
+        "name": "Gjenstående døgngrader"
+      },
+      "start_time": {
+        "name": "Starttidspunkt"
+      },
+      "elapsed_time": {
+        "name": "Forløpt tid"
+      },
       "last_event": {
         "name": "Siste hendelse",
         "state": {
@@ -69,7 +81,9 @@
           "note_cleared": "Notat slettet"
         }
       },
-      "target_reached_time": {"name": "Mål nådd"},
+      "target_reached_time": {
+        "name": "Mål nådd"
+      },
       "temperature_sensor_health": {
         "name": "Temperatursensorstatus",
         "state": {
@@ -79,46 +93,54 @@
           "unknown": "Ukjent"
         }
       },
-      "last_valid_temperature_time": {"name": "Siste gyldige temperaturavlesning"}
+      "last_valid_temperature_time": {
+        "name": "Siste gyldige temperaturavlesning"
+      }
     },
     "button": {
-      "start": {"name": "Start"},
-      "pause": {"name": "Pause"},
-      "reset": {"name": "Nullstill"},
-      "calibrate": {"name": "Kalibrer"}
+      "start": {
+        "name": "Start"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "reset": {
+        "name": "Nullstill"
+      },
+      "calibrate": {
+        "name": "Kalibrer"
+      }
     },
     "number": {
-      "calibration_value": {"name": "Kalibreringsverdi"},
-      "sensor_stale_minutes": {"name": "Sensor timeout"}
+      "calibration_value": {
+        "name": "Kalibreringsverdi"
+      },
+      "sensor_stale_minutes": {
+        "name": "Sensor timeout"
+      }
     },
     "text": {
-      "calibration_comment": {"name": "Kalibreringskommentar"},
-      "note": {"name": "Notat"}
+      "calibration_comment": {
+        "name": "Kalibreringskommentar"
+      },
+      "note": {
+        "name": "Notat"
+      }
     },
     "select": {
-      "temperature_sensor": {"name": "Temperatursensor"}
+      "temperature_sensor": {
+        "name": "Temperatursensor"
+      }
     }
   },
   "common": {
-    "notifications": {
-      "target_reached": {
-        "title": "Mørningsmål nådd: {name}",
-        "message": "{name} har nådd {target_degree_days:.1f} °C·d. Telleren fortsetter å telle. Nåværende verdi er {degree_days:.1f} °C·d. Middeltemperatur siste time er {average_temperature:.1f} °C."
-      },
-      "sensor_health": {
-        "stale": {
-          "title": "Temperatursensor reagerer ikke: {name}",
-          "message": "Temperatursensoren {sensor} har ikke fått en ny verdi på mer enn {minutes:.0f} minutter. Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes. {last_temperature}"
-        },
-        "unavailable": {
-          "title": "Temperatursensor utilgjengelig: {name}",
-          "message": "Temperatursensoren {sensor} er utilgjengelig eller har en ugyldig verdi. Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes. {last_temperature}"
-        }
-      },
-      "last_temperature": {
-        "known": "Siste kjente temperatur er {temperature:.1f} °C.",
-        "unknown": "Ingen gyldig temperatur er kjent."
-      }
-    }
+    "notification_target_reached_title": "Mørningsmål nådd: {name}",
+    "notification_target_reached_message": "{name} har nådd {target_degree_days:.1f} °C·d. Telleren fortsetter å telle. Nåværende verdi er {degree_days:.1f} °C·d. Middeltemperatur siste time er {average_temperature:.1f} °C.",
+    "notification_sensor_health_stale_title": "Temperatursensor reagerer ikke: {name}",
+    "notification_sensor_health_stale_message": "Temperatursensoren {sensor} har ikke fått en ny verdi på mer enn {minutes:.0f} minutter. Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes. {last_temperature}",
+    "notification_sensor_health_unavailable_title": "Temperatursensor utilgjengelig: {name}",
+    "notification_sensor_health_unavailable_message": "Temperatursensoren {sensor} er utilgjengelig eller har en ugyldig verdi. Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes. {last_temperature}",
+    "notification_last_temperature_known": "Siste kjente temperatur er {temperature:.1f} °C.",
+    "notification_last_temperature_unknown": "Ingen gyldig temperatur er kjent."
   }
 }

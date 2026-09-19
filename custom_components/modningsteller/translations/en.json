@@ -39,8 +39,12 @@
   },
   "entity": {
     "sensor": {
-      "degree_days": {"name": "Degree days"},
-      "average_temperature": {"name": "One-hour average temperature"},
+      "degree_days": {
+        "name": "Degree days"
+      },
+      "average_temperature": {
+        "name": "One-hour average temperature"
+      },
       "status": {
         "name": "Status",
         "state": {
@@ -50,10 +54,18 @@
           "stopped": "Stopped"
         }
       },
-      "expected_finish": {"name": "Estimated finish time"},
-      "remaining_degree_days": {"name": "Remaining degree days"},
-      "start_time": {"name": "Start time"},
-      "elapsed_time": {"name": "Elapsed time"},
+      "expected_finish": {
+        "name": "Estimated finish time"
+      },
+      "remaining_degree_days": {
+        "name": "Remaining degree days"
+      },
+      "start_time": {
+        "name": "Start time"
+      },
+      "elapsed_time": {
+        "name": "Elapsed time"
+      },
       "last_event": {
         "name": "Last event",
         "state": {
@@ -69,7 +81,9 @@
           "note_cleared": "Note cleared"
         }
       },
-      "target_reached_time": {"name": "Target reached"},
+      "target_reached_time": {
+        "name": "Target reached"
+      },
       "temperature_sensor_health": {
         "name": "Temperature sensor health",
         "state": {
@@ -79,46 +93,54 @@
           "unknown": "Unknown"
         }
       },
-      "last_valid_temperature_time": {"name": "Last valid temperature reading"}
+      "last_valid_temperature_time": {
+        "name": "Last valid temperature reading"
+      }
     },
     "button": {
-      "start": {"name": "Start"},
-      "pause": {"name": "Pause"},
-      "reset": {"name": "Reset"},
-      "calibrate": {"name": "Calibrate"}
+      "start": {
+        "name": "Start"
+      },
+      "pause": {
+        "name": "Pause"
+      },
+      "reset": {
+        "name": "Reset"
+      },
+      "calibrate": {
+        "name": "Calibrate"
+      }
     },
     "number": {
-      "calibration_value": {"name": "Calibration value"},
-      "sensor_stale_minutes": {"name": "Sensor stale timeout"}
+      "calibration_value": {
+        "name": "Calibration value"
+      },
+      "sensor_stale_minutes": {
+        "name": "Sensor stale timeout"
+      }
     },
     "text": {
-      "calibration_comment": {"name": "Calibration comment"},
-      "note": {"name": "Note"}
+      "calibration_comment": {
+        "name": "Calibration comment"
+      },
+      "note": {
+        "name": "Note"
+      }
     },
     "select": {
-      "temperature_sensor": {"name": "Temperature sensor"}
+      "temperature_sensor": {
+        "name": "Temperature sensor"
+      }
     }
   },
   "common": {
-    "notifications": {
-      "target_reached": {
-        "title": "Maturation target reached: {name}",
-        "message": "{name} has reached {target_degree_days:.1f} °C·d. The counter will continue. The current value is {degree_days:.1f} °C·d. The one-hour average temperature is {average_temperature:.1f} °C."
-      },
-      "sensor_health": {
-        "stale": {
-          "title": "Temperature sensor is stale: {name}",
-          "message": "The temperature sensor {sensor} has not received a new value for more than {minutes:.0f} minutes. The counter continues using the last known temperature when available. {last_temperature}"
-        },
-        "unavailable": {
-          "title": "Temperature sensor unavailable: {name}",
-          "message": "The temperature sensor {sensor} is unavailable or has an invalid value. The counter continues using the last known temperature when available. {last_temperature}"
-        }
-      },
-      "last_temperature": {
-        "known": "The last known temperature is {temperature:.1f} °C.",
-        "unknown": "No valid temperature is known."
-      }
-    }
+    "notification_target_reached_title": "Maturation target reached: {name}",
+    "notification_target_reached_message": "{name} has reached {target_degree_days:.1f} °C·d. The counter will continue. The current value is {degree_days:.1f} °C·d. The one-hour average temperature is {average_temperature:.1f} °C.",
+    "notification_sensor_health_stale_title": "Temperature sensor is stale: {name}",
+    "notification_sensor_health_stale_message": "The temperature sensor {sensor} has not received a new value for more than {minutes:.0f} minutes. The counter continues using the last known temperature when available. {last_temperature}",
+    "notification_sensor_health_unavailable_title": "Temperature sensor unavailable: {name}",
+    "notification_sensor_health_unavailable_message": "The temperature sensor {sensor} is unavailable or has an invalid value. The counter continues using the last known temperature when available. {last_temperature}",
+    "notification_last_temperature_known": "The last known temperature is {temperature:.1f} °C.",
+    "notification_last_temperature_unknown": "No valid temperature is known."
   }
 }

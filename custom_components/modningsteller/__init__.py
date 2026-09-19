@@ -42,12 +42,12 @@ async def _async_last_temperature_text(
     if coordinator.last_valid_temperature is None:
         return await _async_translate(
             hass,
-            "notifications.last_temperature.unknown",
+            "notification_last_temperature_unknown",
             {},
         )
     return await _async_translate(
         hass,
-        "notifications.last_temperature.known",
+        "notification_last_temperature_known",
         {"temperature": coordinator.last_valid_temperature},
     )
 
@@ -66,10 +66,10 @@ async def _async_notification_text(
     }
     return (
         await _async_translate(
-            hass, "notifications.target_reached.title", placeholders
+            hass, "notification_target_reached_title", placeholders
         ),
         await _async_translate(
-            hass, "notifications.target_reached.message", placeholders
+            hass, "notification_target_reached_message", placeholders
         ),
     )
 
@@ -91,10 +91,10 @@ async def _async_sensor_health_notification_text(
     }
     return (
         await _async_translate(
-            hass, f"notifications.sensor_health.{key}.title", placeholders
+            hass, f"notification_sensor_health_{key}_title", placeholders
         ),
         await _async_translate(
-            hass, f"notifications.sensor_health.{key}.message", placeholders
+            hass, f"notification_sensor_health_{key}_message", placeholders
         ),
     )
 
