@@ -295,6 +295,10 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Read temperature history and accumulate degree days."""
+        return await self._async_update_data_internal(accumulate=True)
+
+    async def _async_update_data_internal(self, *, accumulate: bool) -> dict[str, Any]:
+        """Refresh temperature status and optionally accumulate process time."""
         now = dt_util.utcnow()
 
         current_state = self.hass.states.get(self.temperature_entity)
@@ -374,7 +378,7 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     return self._data()
                 self.average_temperature = self.last_valid_temperature
 
-        if self.running and self.last_update is not None and self.average_temperature is not None:
+        if accumulate and self.running and self.last_update is not None and self.average_temperature is not None:
             elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
             self.active_seconds += elapsed_seconds
             self.degree_days += self.average_temperature * (elapsed_seconds / 86400)
@@ -501,10 +505,24 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if self.on_target_reached is not None:
                         self.hass.async_create_task(self.on_target_reached())
 
+        previous_health = self.temperature_sensor_health
+
         self.temperature_entity = new_entity
         self._temperature_window_start = now
         self.last_update = now
         self.average_temperature = None
+
+        # Do not carry temperature data from the old sensor into the new one.
+        # The new sensor gets a completely fresh health evaluation below.
+        self.last_valid_temperature = None
+        self.last_valid_temperature_at = None
+        self.last_temperature_age_seconds = None
+
+        # If the old sensor was unhealthy, move through unknown before checking
+        # the new sensor. This guarantees that an unhealthy new sensor triggers
+        # a fresh notification containing the new sensor name.
+        if previous_health in {"unavailable", "stale"}:
+            self._set_sensor_health("unknown", now, "temperature_sensor_changed")
 
         self._set_event(
             "temperature_sensor_changed",
@@ -525,15 +543,9 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         self.temperature_change_history = self.temperature_change_history[-20:]
 
-        # Refresh immediately from the new sensor; no degree days are added
-        # during this refresh itself.
-        try:
-            await self._async_update_average(now)
-        except UpdateFailed as err:
-            _LOGGER.warning("Could not refresh average after temperature sensor change: %s", err)
-            self.average_temperature = None
-
-        await self._async_save_state()
+        # Perform a complete status refresh from the new sensor immediately.
+        # This does not accumulate any degree days or active time.
+        await self._async_update_data_internal(accumulate=False)
         self.async_set_updated_data(self._data())
 
     async def async_set_note(self, value: str) -> None:

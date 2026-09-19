@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## What's changed
+
 ### Added
 - Updated README with automation on events example
 - Added localized notification messages.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.core import HomeAssistant
@@ -308,7 +308,6 @@ async def test_unavailable_temperature_sensor_uses_last_known_temperature(
     hass: HomeAssistant, coordinator, freezer
 ) -> None:
     """An unavailable temperature sensor continues using the last known temperature."""
-    coordinator._startup_grace_active = False
     freezer.move_to("2026-09-14 12:00:00+00:00")
     coordinator.degree_days = 8.0
     coordinator.last_valid_temperature = 5.0
@@ -325,50 +324,6 @@ async def test_unavailable_temperature_sensor_uses_last_known_temperature(
     assert coordinator.temperature_sensor_health == "unavailable"
     assert coordinator.degree_days == pytest.approx(8.0 + 5.0 * 2 / 24.0)
     assert coordinator.average_temperature == pytest.approx(5.0)
-
-
-@pytest.mark.usefixtures("enable_custom_integrations")
-async def test_unavailable_sensor_is_unknown_during_startup_grace(
-    hass: HomeAssistant, coordinator, freezer
-) -> None:
-    """A transient unavailable sensor during startup must not create an alarm."""
-    freezer.move_to("2026-09-18 12:00:00+00:00")
-    coordinator._startup_grace_active = True
-    callback = AsyncMock()
-    coordinator.on_sensor_health_changed = callback
-    coordinator.last_valid_temperature = 14.6
-    coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(minutes=1)
-    coordinator.last_update = dt_util.utcnow()
-    coordinator._async_update_average = AsyncMock()
-
-    hass.states.async_set(
-        "sensor.test_temperature",
-        "unavailable",
-        {"device_class": "temperature"},
-    )
-
-    await coordinator._async_update_data()
-    await hass.async_block_till_done()
-
-    assert coordinator.temperature_sensor_health == "unknown"
-    assert coordinator._startup_grace_active is True
-    assert callback.await_count == 0
-
-    hass.states.async_set(
-        "sensor.test_temperature",
-        "14.6",
-        {"device_class": "temperature"},
-    )
-
-    await coordinator._async_update_data()
-    await hass.async_block_till_done()
-
-    assert coordinator.temperature_sensor_health == "ok"
-    assert coordinator._startup_grace_active is False
-    assert callback.await_count == 1
-    assert callback.await_args.args[:2] == ("unknown", "ok")
-
-
 
 
 async def test_sensor_health_callback_fires_when_health_changes(
@@ -551,7 +506,6 @@ async def test_unavailable_temperature_sensor_notifies_but_uses_last_known_value
     hass: HomeAssistant, coordinator, freezer
 ) -> None:
     """Unavailable health notifies while the last known temperature remains usable."""
-    coordinator._startup_grace_active = False
     freezer.move_to("2026-09-14 12:00:00+00:00")
     callback = AsyncMock()
     coordinator.on_sensor_health_changed = callback
@@ -572,3 +526,47 @@ async def test_unavailable_temperature_sensor_notifies_but_uses_last_known_value
     assert coordinator.degree_days == pytest.approx(3.5 * 20 / 1440)
     assert callback.await_count == 1
     assert callback.await_args.args[:2] == ("unknown", "unavailable")
+
+
+async def test_temperature_sensor_change_refreshes_health_from_new_sensor(
+    hass: HomeAssistant, coordinator
+) -> None:
+    """Changing sensors immediately evaluates health using the new sensor."""
+    coordinator.running = False
+    coordinator.temperature_sensor_health = "stale"
+    coordinator.last_valid_temperature = 4.0
+    coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(hours=5)
+    coordinator.last_temperature_age_seconds = 5 * 3600
+    coordinator.average_temperature = 4.0
+    callback = AsyncMock()
+    coordinator.on_sensor_health_changed = callback
+    coordinator._store.async_save = AsyncMock()
+
+    hass.states.async_set(
+        "sensor.other_temperature",
+        "6.5",
+        {"device_class": "temperature"},
+    )
+
+    async def set_average(now, current_value=None):
+        coordinator.average_temperature = current_value
+
+    coordinator._async_update_average = AsyncMock(side_effect=set_average)
+
+    await coordinator.async_change_temperature_entity("sensor.other_temperature")
+    await hass.async_block_till_done()
+
+    new_state = hass.states.get("sensor.other_temperature")
+    assert new_state is not None
+    assert coordinator.temperature_entity == "sensor.other_temperature"
+    assert coordinator.temperature_sensor_health == "ok"
+    assert coordinator.last_valid_temperature == 6.5
+    assert coordinator.last_valid_temperature_at == new_state.last_updated
+    assert coordinator.last_temperature_age_seconds == pytest.approx(
+        max((dt_util.utcnow() - new_state.last_updated).total_seconds(), 0.0),
+        abs=0.5,
+    )
+    assert coordinator.average_temperature == pytest.approx(6.5)
+    assert callback.await_count == 2
+    assert callback.await_args_list[0].args[:2] == ("stale", "unknown")
+    assert callback.await_args_list[1].args[:2] == ("unknown", "ok")

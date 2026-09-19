@@ -18,6 +18,11 @@ def _notification_id(entry: ConfigEntry) -> str:
     return f"modningsteller_{entry.entry_id}_target"
 
 
+def _sensor_health_notification_id(entry: ConfigEntry) -> str:
+    """Return the persistent notification ID for sensor health warnings."""
+    return f"modningsteller_{entry.entry_id}_sensor_health"
+
+
 async def _async_get_translation_catalog(
     hass: HomeAssistant,
 ) -> dict[str, str]:
@@ -128,7 +133,7 @@ async def _async_sensor_health_changed(
             title=title,
             notification_id=notification_id,
         )
-    elif old_health in {"unavailable", "stale"} and new_health == "ok":
+    elif old_health in {"unavailable", "stale", "unknown"} and new_health == "ok":
         async_dismiss(hass, notification_id)
 
 
