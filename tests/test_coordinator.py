@@ -313,6 +313,7 @@ async def test_unavailable_temperature_sensor_uses_last_known_temperature(
     coordinator.last_valid_temperature = 5.0
     coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(hours=1)
     coordinator.last_update = dt_util.utcnow() - timedelta(hours=2)
+    coordinator._startup_grace_active = False
     hass.states.async_set(
         "sensor.test_temperature",
         "unavailable",
@@ -512,6 +513,7 @@ async def test_unavailable_temperature_sensor_notifies_but_uses_last_known_value
     coordinator.last_valid_temperature = 3.5
     coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(minutes=30)
     coordinator.last_update = dt_util.utcnow() - timedelta(minutes=20)
+    coordinator._startup_grace_active = False
     hass.states.async_set(
         "sensor.test_temperature",
         "unavailable",
