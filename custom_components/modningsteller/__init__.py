@@ -6,6 +6,7 @@ from homeassistant.components.persistent_notification import async_create, async
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.start import async_at_started
+from homeassistant.helpers.translation import async_get_translations
 
 from .const import DOMAIN
 from .coordinator import ModningstellerCoordinator
@@ -17,77 +18,84 @@ def _notification_id(entry: ConfigEntry) -> str:
     return f"modningsteller_{entry.entry_id}_target"
 
 
-def _notification_text(
+async def _async_translate(
+    hass: HomeAssistant,
+    key: str,
+    placeholders: dict[str, object],
+) -> str:
+    """Return a localized integration string from the Home Assistant translation cache."""
+    language = hass.config.language or "en"
+    translations = await async_get_translations(
+        hass, language, "common", {DOMAIN}
+    )
+    translation_key = f"component.{DOMAIN}.common.{key}"
+    text = translations.get(translation_key)
+    if text is None:
+        raise KeyError(f"Missing Modningsteller translation: {translation_key}")
+    return text.format(**placeholders)
+
+
+async def _async_last_temperature_text(
+    hass: HomeAssistant, coordinator: ModningstellerCoordinator
+) -> str:
+    """Return a localized description of the last known temperature."""
+    if coordinator.last_valid_temperature is None:
+        return await _async_translate(
+            hass,
+            "notifications.last_temperature.unknown",
+            {},
+        )
+    return await _async_translate(
+        hass,
+        "notifications.last_temperature.known",
+        {"temperature": coordinator.last_valid_temperature},
+    )
+
+
+async def _async_notification_text(
     hass: HomeAssistant,
     entry: ConfigEntry,
     coordinator: ModningstellerCoordinator,
 ) -> tuple[str, str]:
-    """Return a localized target notification using the Home Assistant system language."""
-    language = (hass.config.language or "en").lower()
-    is_norwegian = language in {"nb", "no"} or language.startswith("nb-")
-    if is_norwegian:
-        title = f"Modning ferdig: {entry.title}"
-        message = (
-            f"{entry.title} har nådd {coordinator.target_degree_days:.1f} °C·d. "
-            f"Telleren fortsetter å telle. Nåværende verdi er {coordinator.degree_days:.1f} °C·d. "
-            f"Middeltemperatur siste time er {coordinator.average_temperature:.1f} °C."
-        )
-        return title, message
-    title = f"Maturation target reached: {entry.title}"
-    message = (
-        f"{entry.title} has reached {coordinator.target_degree_days:.1f} °C·d. "
-        f"The counter will continue. The current value is {coordinator.degree_days:.1f} °C·d. "
-        f"The one-hour average temperature is {coordinator.average_temperature:.1f} °C."
+    """Return a localized target notification using Home Assistant's language."""
+    placeholders = {
+        "name": entry.title,
+        "target_degree_days": coordinator.target_degree_days,
+        "degree_days": coordinator.degree_days,
+        "average_temperature": coordinator.average_temperature,
+    }
+    return (
+        await _async_translate(
+            hass, "notifications.target_reached.title", placeholders
+        ),
+        await _async_translate(
+            hass, "notifications.target_reached.message", placeholders
+        ),
     )
-    return title, message
 
 
-def _last_temperature_text(coordinator: ModningstellerCoordinator, norwegian: bool) -> str:
-    """Return a localized description of the last known temperature."""
-    if coordinator.last_valid_temperature is None:
-        return "Ingen gyldig temperatur er kjent." if norwegian else "No valid temperature is known."
-    if norwegian:
-        return f"Siste kjente temperatur er {coordinator.last_valid_temperature:.1f} °C."
-    return f"The last known temperature is {coordinator.last_valid_temperature:.1f} °C."
-
-
-def _sensor_health_notification_id(entry: ConfigEntry) -> str:
-    return f"modningsteller_{entry.entry_id}_sensor_health"
-
-
-def _sensor_health_notification_text(
+async def _async_sensor_health_notification_text(
     hass: HomeAssistant,
     entry: ConfigEntry,
     coordinator: ModningstellerCoordinator,
     health: str,
 ) -> tuple[str, str]:
-    language = (hass.config.language or "en").lower()
-    is_norwegian = language in {"nb", "no"} or language.startswith("nb-")
-    sensor_name = coordinator.temperature_entity
-    if health == "stale":
-        if is_norwegian:
-            return (
-                f"Temperatursensor reagerer ikke: {entry.title}",
-                f"Temperatursensoren {sensor_name} har ikke fått en ny verdi på mer enn "
-                f"{coordinator.temperature_sensor_stale_after_seconds / 60:.0f} minutter. "
-                "Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes.",
-            )
-        return (
-            f"Temperature sensor is stale: {entry.title}",
-            f"The temperature sensor {sensor_name} has not received a new value for more than "
-            f"{coordinator.temperature_sensor_stale_after_seconds / 60:.0f} minutes. "
-            f"The counter continues using the last known temperature when available. {_last_temperature_text(coordinator, False)}",
-        )
-    if is_norwegian:
-        return (
-            f"Temperatursensor utilgjengelig: {entry.title}",
-            f"Temperatursensoren {sensor_name} er utilgjengelig eller har en ugyldig verdi. "
-            f"Telleren fortsetter med siste kjente temperatur når denne finnes. {_last_temperature_text(coordinator, True)}",
-        )
+    """Return a localized sensor health notification."""
+    key = "stale" if health == "stale" else "unavailable"
+    last_temperature = await _async_last_temperature_text(hass, coordinator)
+    placeholders = {
+        "name": entry.title,
+        "sensor": coordinator.temperature_entity,
+        "minutes": coordinator.temperature_sensor_stale_after_seconds / 60,
+        "last_temperature": last_temperature,
+    }
     return (
-        f"Temperature sensor unavailable: {entry.title}",
-        f"The temperature sensor {sensor_name} is unavailable or has an invalid value. "
-        f"The counter continues using the last known temperature when available. {_last_temperature_text(coordinator, False)}",
+        await _async_translate(
+            hass, f"notifications.sensor_health.{key}.title", placeholders
+        ),
+        await _async_translate(
+            hass, f"notifications.sensor_health.{key}.message", placeholders
+        ),
     )
 
 
@@ -102,7 +110,7 @@ async def _async_sensor_health_changed(
     coordinator = hass.data[DOMAIN][entry.entry_id]
     notification_id = _sensor_health_notification_id(entry)
     if new_health in {"unavailable", "stale"}:
-        title, message = _sensor_health_notification_text(
+        title, message = await _async_sensor_health_notification_text(
             hass, entry, coordinator, new_health
         )
         async_create(
@@ -118,7 +126,7 @@ async def _async_sensor_health_changed(
 async def _async_target_reached(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Notify that a maturation counter reached its target."""
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    title, message = _notification_text(hass, entry, coordinator)
+    title, message = await _async_notification_text(hass, entry, coordinator)
 
     async_create(
         hass,
