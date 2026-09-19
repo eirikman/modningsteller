@@ -126,4 +126,4 @@ async def test_sensor_health_notification_uses_translation_catalog(monkeypatch) 
 
     assert title == "STALE: Rype"
     assert message == "sensor.garage_temperature 240 Known temperature: 14.4"
-    assert loader.await_count == 2
+    assert loader.await_count == 1
