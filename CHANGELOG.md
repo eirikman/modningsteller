@@ -7,7 +7,7 @@
 - Added localized notification messages.
 
 ### Fixed
-
+- Notification text for staled temp sensor corrected.
 
 
 ### Changed
