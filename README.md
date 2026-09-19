@@ -268,9 +268,11 @@ Additional control/configuration entities are provided for:
 
 ## Events
 
-The integration emits Home Assistant events for important process changes.
+The integration emits a custom Home Assistant event for important process changes.
 
-Events can include:
+**Event type:** `modningsteller_event`
+
+The event contains a `type` field identifying the event:
 
 - `started`
 - `paused`
@@ -283,6 +285,36 @@ Events can include:
 - `note_cleared`
 
 These events can be used in Home Assistant automations.
+
+For example, to trigger an automation that sends a notification to your phone when any Modningsteller counter reaches its target:
+
+```
+alias: Modningsteller - Target Reached
+description: Send a phone notification when any Modningsteller counter reaches its target
+triggers:
+  - trigger: event
+    event_type: modningsteller_event
+    event_data:
+      type: target_reached
+
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "Modningsteller - Target Reached"
+      message: >-
+        {{ trigger.event.data.name }} has reached its target.
+
+        Finished: {{ as_local(as_datetime(trigger.event.data.timestamp)).strftime('%d.%m.%Y at %H:%M') }}
+
+        Degree-days: {{ trigger.event.data.degree_days }} °C·d
+        Target: {{ trigger.event.data.target_degree_days }} °C·d
+
+mode: parallel
+```
+
+The event also contains information about the counter, including its name, timestamp, degree-days and target value.
+
+`modningsteller_event` is the Home Assistant **event type**. The **type field** in the event data identifies what happened.
 
 ## Dashboard
 
