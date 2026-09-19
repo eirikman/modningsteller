@@ -18,16 +18,22 @@ def _notification_id(entry: ConfigEntry) -> str:
     return f"modningsteller_{entry.entry_id}_target"
 
 
-async def _async_translate(
+async def _async_get_translation_catalog(
     hass: HomeAssistant,
+) -> dict[str, str]:
+    """Return the localized Modningsteller translation catalog."""
+    language = hass.config.language or "en"
+    return await async_get_translations(
+        hass, language, "common", {DOMAIN}
+    )
+
+
+def _format_translation(
+    translations: dict[str, str],
     key: str,
     placeholders: dict[str, object],
 ) -> str:
-    """Return a localized integration string from the Home Assistant translation cache."""
-    language = hass.config.language or "en"
-    translations = await async_get_translations(
-        hass, language, "common", {DOMAIN}
-    )
+    """Format one localized string from an already loaded catalog."""
     translation_key = f"component.{DOMAIN}.common.{key}"
     text = translations.get(translation_key)
     if text is None:
@@ -35,18 +41,19 @@ async def _async_translate(
     return text.format(**placeholders)
 
 
-async def _async_last_temperature_text(
-    hass: HomeAssistant, coordinator: ModningstellerCoordinator
+def _last_temperature_text(
+    translations: dict[str, str],
+    coordinator: ModningstellerCoordinator,
 ) -> str:
     """Return a localized description of the last known temperature."""
     if coordinator.last_valid_temperature is None:
-        return await _async_translate(
-            hass,
+        return _format_translation(
+            translations,
             "notification_last_temperature_unknown",
             {},
         )
-    return await _async_translate(
-        hass,
+    return _format_translation(
+        translations,
         "notification_last_temperature_known",
         {"temperature": coordinator.last_valid_temperature},
     )
@@ -58,6 +65,7 @@ async def _async_notification_text(
     coordinator: ModningstellerCoordinator,
 ) -> tuple[str, str]:
     """Return a localized target notification using Home Assistant's language."""
+    translations = await _async_get_translation_catalog(hass)
     placeholders = {
         "name": entry.title,
         "target_degree_days": coordinator.target_degree_days,
@@ -65,11 +73,11 @@ async def _async_notification_text(
         "average_temperature": coordinator.average_temperature,
     }
     return (
-        await _async_translate(
-            hass, "notification_target_reached_title", placeholders
+        _format_translation(
+            translations, "notification_target_reached_title", placeholders
         ),
-        await _async_translate(
-            hass, "notification_target_reached_message", placeholders
+        _format_translation(
+            translations, "notification_target_reached_message", placeholders
         ),
     )
 
@@ -81,8 +89,9 @@ async def _async_sensor_health_notification_text(
     health: str,
 ) -> tuple[str, str]:
     """Return a localized sensor health notification."""
+    translations = await _async_get_translation_catalog(hass)
     key = "stale" if health == "stale" else "unavailable"
-    last_temperature = await _async_last_temperature_text(hass, coordinator)
+    last_temperature = _last_temperature_text(translations, coordinator)
     placeholders = {
         "name": entry.title,
         "sensor": coordinator.temperature_entity,
@@ -90,11 +99,11 @@ async def _async_sensor_health_notification_text(
         "last_temperature": last_temperature,
     }
     return (
-        await _async_translate(
-            hass, f"notification_sensor_health_{key}_title", placeholders
+        _format_translation(
+            translations, f"notification_sensor_health_{key}_title", placeholders
         ),
-        await _async_translate(
-            hass, f"notification_sensor_health_{key}_message", placeholders
+        _format_translation(
+            translations, f"notification_sensor_health_{key}_message", placeholders
         ),
     )
 
