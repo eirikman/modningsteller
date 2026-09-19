@@ -70,7 +70,7 @@ def _sensor_health_notification_text(
                 f"Temperatursensor reagerer ikke: {entry.title}",
                 f"Temperatursensoren {sensor_name} har ikke fått en ny verdi på mer enn "
                 f"{coordinator.temperature_sensor_stale_after_seconds / 60:.0f} minutter. "
-                "Døgngradtellingen er midlertidig satt på vent for å unngå feil akkumulering.",
+                "Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes.",
             )
         return (
             f"Temperature sensor is stale: {entry.title}",
