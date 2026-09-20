@@ -46,7 +46,7 @@ class CalibrationValueNumber(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.title,
             manufacturer="Modningsteller",
-            model="Mørningsteller",
+            model="Modningsteller",
         )
         self._value = round(coordinator.calibration_value, 3)
 
@@ -81,7 +81,7 @@ class SensorStaleMinutesNumber(CoordinatorEntity[ModningstellerCoordinator], Num
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.title,
             manufacturer="Modningsteller",
-            model="Mørningsteller",
+            model="Modningsteller",
         )
 
     @property

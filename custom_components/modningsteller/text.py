@@ -41,7 +41,7 @@ class CalibrationCommentText(CoordinatorEntity[ModningstellerCoordinator], TextE
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.title,
             manufacturer="Modningsteller",
-            model="Mørningsteller",
+            model="Modningsteller",
         )
         self._value = coordinator.calibration_comment
 
@@ -72,7 +72,7 @@ class NoteText(CoordinatorEntity[ModningstellerCoordinator], TextEntity):
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.title,
             manufacturer="Modningsteller",
-            model="Mørningsteller",
+            model="Modningsteller",
         )
 
     @property

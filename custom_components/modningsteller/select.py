@@ -42,7 +42,7 @@ class TemperatureSensorSelect(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.title,
             manufacturer="Modningsteller",
-            model="Mørningsteller",
+            model="Modningsteller",
         )
         self._options: list[str] = []
         self._option_to_entity: dict[str, str] = {}
