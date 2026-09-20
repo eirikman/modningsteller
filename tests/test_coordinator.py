@@ -23,7 +23,7 @@ from custom_components.modningsteller.coordinator import ModningstellerCoordinat
         (2.0, 40 / (40 - 15.0)),
         (3.0, 40 / (40 - 22.5)),
         (4.0, 4.0),
-        (8.0, 8.0),
+        (5.0, 5.0),
     ],
 )
 def test_degree_day_calculation_by_temperature(temperature, expected) -> None:
@@ -584,7 +584,9 @@ async def test_unavailable_temperature_sensor_notifies_but_uses_last_known_value
 
     assert coordinator.temperature_sensor_health == "unavailable"
     assert coordinator.average_temperature == pytest.approx(3.5)
-    assert coordinator.degree_days == pytest.approx(3.5 * 20 / 1440)
+    assert coordinator.degree_days == pytest.approx(
+        (40 / (40 - 7.5 * 3.5)) * 20 / 1440
+    )
     assert callback.await_count == 1
     assert callback.await_args.args[:2] == ("unknown", "unavailable")
 
