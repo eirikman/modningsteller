@@ -10,6 +10,37 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from custom_components.modningsteller.const import CONF_TEMPERATURE_ENTITY
+from custom_components.modningsteller.coordinator import ModningstellerCoordinator
+
+
+@pytest.mark.parametrize(
+    ("temperature", "expected"),
+    [
+        (-5.0, 0.0),
+        (-0.1, 0.0),
+        (0.0, 1.0),
+        (1.0, 40 / (40 - 7.5)),
+        (2.0, 40 / (40 - 15.0)),
+        (3.0, 40 / (40 - 22.5)),
+        (4.0, 4.0),
+        (5.0, 5.0),
+    ],
+)
+def test_degree_day_calculation_by_temperature(temperature, expected) -> None:
+    """Use the low-temperature model below 4 C and stop below 0 C."""
+    result = ModningstellerCoordinator._calculate_degree_days(temperature, 86400)
+    assert result == pytest.approx(expected)
+
+
+def test_degree_day_calculation_handles_fractional_elapsed_time() -> None:
+    """Degree-day contribution scales linearly with elapsed time."""
+    temperature = 2.0
+    elapsed_seconds = 6 * 3600
+    expected = (40 / (40 - 7.5 * temperature)) * 0.25
+
+    result = ModningstellerCoordinator._calculate_degree_days(temperature, elapsed_seconds)
+
+    assert result == pytest.approx(expected)
 
 
 @pytest.mark.usefixtures("enable_custom_integrations")
@@ -30,6 +61,34 @@ async def test_degree_days_accumulate_from_elapsed_time(
     await coordinator._async_update_data()
 
     assert coordinator.degree_days == pytest.approx(4.0)
+    assert coordinator.active_seconds == pytest.approx(86400.0)
+
+
+@pytest.mark.usefixtures("enable_custom_integrations")
+@pytest.mark.parametrize(
+    ("temperature", "expected"),
+    [
+        (2.0, 40 / (40 - 7.5 * 2.0)),
+        (-1.0, 0.0),
+    ],
+)
+async def test_degree_days_accumulate_with_low_temperature_model(
+    hass: HomeAssistant, coordinator, freezer, temperature, expected
+) -> None:
+    """Accumulation uses the low-temperature model, including zero below 0 C."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    hass.states.async_set(
+        "sensor.test_temperature",
+        str(temperature),
+        {"device_class": "temperature"},
+    )
+    coordinator.last_update = dt_util.utcnow() - timedelta(days=1)
+    coordinator.average_temperature = temperature
+    coordinator._async_update_average = AsyncMock()
+
+    await coordinator._async_update_data()
+
+    assert coordinator.degree_days == pytest.approx(expected)
     assert coordinator.active_seconds == pytest.approx(86400.0)
 
 
@@ -525,7 +584,9 @@ async def test_unavailable_temperature_sensor_notifies_but_uses_last_known_value
 
     assert coordinator.temperature_sensor_health == "unavailable"
     assert coordinator.average_temperature == pytest.approx(3.5)
-    assert coordinator.degree_days == pytest.approx(3.5 * 20 / 1440)
+    assert coordinator.degree_days == pytest.approx(
+        (40 / (40 - 7.5 * 3.5)) * 20 / 1440
+    )
     assert callback.await_count == 1
     assert callback.await_args.args[:2] == ("unknown", "unavailable")
 
