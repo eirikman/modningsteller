@@ -381,7 +381,9 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if accumulate and self.running and self.last_update is not None and self.average_temperature is not None:
             elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
             self.active_seconds += elapsed_seconds
-            self.degree_days += self.average_temperature * (elapsed_seconds / 86400)
+            self.degree_days += self._calculate_degree_days(
+                self.average_temperature, elapsed_seconds
+            )
 
             # The target is a notification threshold, not a stop condition.
             if self.degree_days >= self.target_degree_days and not self.reached_target:
@@ -403,6 +405,26 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         await self._async_save_state()
         return self._data()
+
+    @staticmethod
+    def _calculate_degree_days(temperature: float, elapsed_seconds: float) -> float:
+        """Calculate degree-day contribution for a temperature interval.
+
+        At temperatures below 0 °C, maturation is considered stopped and
+        contributes no degree days. From 0 °C up to (but not including) 4 °C,
+        the contribution follows the low-temperature formula. At 4 °C and
+        above, the existing linear degree-day calculation is used.
+        """
+        elapsed_days = max(elapsed_seconds, 0.0) / 86400
+
+        if temperature < 0:
+            degree_day_factor = 0.0
+        elif temperature < 4:
+            degree_day_factor = 40 / (40 - 7.5 * temperature)
+        else:
+            degree_day_factor = temperature
+
+        return degree_day_factor * elapsed_days
 
     def _data(self) -> dict[str, Any]:
         """Return the current coordinator data."""
@@ -495,7 +517,9 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self.running and self.last_update is not None and self.average_temperature is not None:
             elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
             self.active_seconds += elapsed_seconds
-            self.degree_days += self.average_temperature * (elapsed_seconds / 86400)
+            self.degree_days += self._calculate_degree_days(
+                self.average_temperature, elapsed_seconds
+            )
             if self.degree_days >= self.target_degree_days and not self.reached_target:
                 self.reached_target = True
                 self.target_reached_at = now
