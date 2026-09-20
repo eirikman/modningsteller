@@ -54,9 +54,21 @@ Modningsteller is designed for meat maturation where accumulated temperature exp
 
 The integration accumulates degree days based on the rolling average temperature from the selected temperature sensor.
 
-The basic calculation is:
+The degree-day calculation depends on the temperature:
 
-    degree days += average temperature × elapsed time in days
+- **At or above 4 °C:**
+  
+      degree days += average temperature × elapsed time in days
+
+- **Between 0 °C and 4 °C:**
+  
+      degree days += (40 / (40 - 7.5 × average temperature)) × elapsed time in days
+
+- **Below 0 °C:**
+  
+      No degree days are accumulated.
+
+This means that temperatures below 4 °C contribute to the maturation process at a reduced, non-linear rate, while temperatures below 0 °C are currently considered to stop the maturation process completely.
 
 The temperature average is calculated over the most recent hour.
 
