@@ -288,7 +288,7 @@ These events can be used in Home Assistant automations.
 
 For example, to trigger an automation that sends a notification to your phone when any Modningsteller counter reaches its target:
 
-```
+```yaml
 alias: Modningsteller - Target Reached
 description: Send a phone notification when any Modningsteller counter reaches its target
 triggers:
