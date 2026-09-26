@@ -44,7 +44,7 @@ class BaseModningstellerButton(
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.title,
             manufacturer="Modningsteller",
-            model="Mørningsteller",
+            model="Modningsteller",
         )
 
 

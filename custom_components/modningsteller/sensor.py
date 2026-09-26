@@ -58,7 +58,7 @@ class BaseModningstellerSensor(CoordinatorEntity[ModningstellerCoordinator], Sen
             identifiers={(DOMAIN, coordinator.entry.entry_id)},
             name=coordinator.entry.title,
             manufacturer="Modningsteller",
-            model="Mørningsteller",
+            model="Modningsteller",
         )
 
 
@@ -81,20 +81,20 @@ class DegreeDaySensor(BaseModningstellerSensor):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
-            "mål": self.coordinator.target_degree_days,
-            "temperatursensor": self.coordinator.temperature_entity,
-            "middeltemperatur_siste_time": self.coordinator.average_temperature,
-            "oppdatert": self.coordinator.last_update,
-            "mål_nådd": self.coordinator.reached_target,
-            "mål_nådd_tidspunkt": self.coordinator.target_reached_at,
-            "starttidspunkt": self.coordinator.run_started_at,
-            "forløpt_tid": self.coordinator._current_active_seconds(),
-            "gjenstående_døgngrader": self.coordinator._data()["remaining_degree_days"],
-            "siste_kalibreringer": self.coordinator.calibration_history[-5:],
-            "siste_sensorbytter": self.coordinator.temperature_change_history[-5:],
-            "notat": self.coordinator.note,
-            "notat_oppdatert": self.coordinator.note_updated_at,
-            "siste_notater": self.coordinator.note_history[-5:],
+            "target_degree_days": self.coordinator.target_degree_days,
+            "temperature_entity": self.coordinator.temperature_entity,
+            "average_temperature_last_hour": self.coordinator.average_temperature,
+            "last_updated": self.coordinator.last_update,
+            "target_reached": self.coordinator.reached_target,
+            "target_reached_at": self.coordinator.target_reached_at,
+            "start_time": self.coordinator.run_started_at,
+            "elapsed_active_time": self.coordinator._current_active_seconds(),
+            "remaining_degree_days": self.coordinator._data()["remaining_degree_days"],
+            "last_calibrations": self.coordinator.calibration_history[-5:],
+            "last_sensor_changes": self.coordinator.temperature_change_history[-5:],
+            "note": self.coordinator.note,
+            "note_updated_at": self.coordinator.note_updated_at,
+            "last_notes": self.coordinator.note_history[-5:],
         }
 
 
@@ -272,8 +272,8 @@ class LastEventSensor(BaseModningstellerSensor):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
-            "tidspunkt": self.coordinator.last_event_at,
-            "detaljer": self.coordinator.last_event_details,
+            "timestamp": self.coordinator.last_event_at,
+            "details": self.coordinator.last_event_details,
         }
 
 
@@ -300,11 +300,11 @@ class TemperatureSensorHealthSensor(BaseModningstellerSensor):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return {
-            "temperatursensor": self.coordinator.temperature_entity,
-            "siste_gyldige_temperatur": self.coordinator.last_valid_temperature,
-            "siste_gyldige_avlesning": self.coordinator.last_valid_temperature_at,
-            "alder_siste_avlesning_sekunder": self.coordinator.last_temperature_age_seconds,
-            "grense_for_utdatert_sensor_sekunder": self.coordinator.temperature_sensor_stale_after_seconds,
+            "temperature_entity": self.coordinator.temperature_entity,
+            "last_valid_temperature": self.coordinator.last_valid_temperature,
+            "last_valid_temperature_at": self.coordinator.last_valid_temperature_at,
+            "last_temperature_age_seconds": self.coordinator.last_temperature_age_seconds,
+            "sensor_stale_after_seconds": self.coordinator.temperature_sensor_stale_after_seconds,
         }
 
 
