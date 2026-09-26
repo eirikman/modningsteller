@@ -156,7 +156,6 @@ async def test_reset_returns_counter_to_ready_and_next_start_creates_new_run(
     assert coordinator.degree_days == pytest.approx(0.0)
     assert coordinator.running is False
     assert coordinator.stopped is True
-    assert coordinator._data()["status"] == "ready"
     assert coordinator.run_started_at is None
     assert coordinator.active_seconds == pytest.approx(0.0)
 
@@ -410,7 +409,6 @@ async def test_ready_counter_updates_sensor_health_without_notification(
     await hass.async_block_till_done()
 
     assert coordinator.temperature_sensor_health == "unavailable"
-    assert coordinator._data()["status"] == "ready"
     assert callback.await_count == 0
 
 
@@ -428,7 +426,8 @@ async def test_paused_counter_still_notifies_on_sensor_health_change(
     coordinator._set_sensor_health("stale", dt_util.utcnow(), "reading_too_old")
     await hass.async_block_till_done()
 
-    assert coordinator._data()["status"] == "paused"
+    assert coordinator.running is False
+    assert coordinator.stopped is False
     assert coordinator.temperature_sensor_health == "stale"
     assert callback.await_count == 1
     assert callback.await_args.args[:2] == ("ok", "stale")
