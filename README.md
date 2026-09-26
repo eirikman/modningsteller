@@ -27,7 +27,7 @@ Modningsteller is designed for meat maturation where accumulated temperature exp
 - Configurable temperature sensor health timeout per maturation counter
 - Start, pause and reset controls
 - Explicit process states:
-  - Stopped
+  - Ready
   - Running
   - Paused
   - Target reached
@@ -161,7 +161,7 @@ This is particularly useful for battery-powered Zigbee temperature sensors, whic
 
 ### Start
 
-Starts a stopped or paused maturation process.
+Starts a ready or paused maturation process.
 
 Pressing Start while the process is already running has no effect.
 
@@ -171,7 +171,7 @@ Stops degree-day accumulation and active-time counting while preserving the curr
 
 ### Reset
 
-Resets the active maturation process to its configured initial state and places it in the **Stopped** state.
+Resets the active maturation process to its configured initial state and places it in the **Ready** state.
 
 Reset performs the following:
 
@@ -186,7 +186,7 @@ Reset performs the following:
 
 Historical calibration, note and event information is preserved.
 
-A new start time is created when Start is pressed after a reset.
+After a reset, the counter is **Ready for a new maturation process**. A new start time is created when Start is pressed.
 
 ## Calibration
 
@@ -240,13 +240,13 @@ If the selected temperature sensor has not provided a new valid value within the
 
 The integration continues accumulating degree days using the **last known valid temperature**.
 
-A sensor-health notification/event is generated when the sensor becomes stale.
+A sensor-health notification/event is generated when the sensor becomes stale while the counter is active. When the counter is **Ready** after a reset, sensor health continues to update, but no sensor-health notification is sent.
 
 ### Unavailable temperature data
 
 If the selected temperature entity becomes unavailable but a previous valid temperature is available, the integration continues using the last known valid temperature.
 
-A sensor-health notification/event is generated when the sensor becomes unavailable.
+A sensor-health notification/event is generated when the sensor becomes unavailable while the counter is active. When the counter is **Ready** after a reset, sensor health continues to update, but no sensor-health notification is sent.
 
 When a new valid temperature becomes available, normal temperature processing resumes.
 

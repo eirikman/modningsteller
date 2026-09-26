@@ -288,7 +288,10 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "last_valid_temperature_at": self.last_valid_temperature_at,
         }
         self._set_event("sensor_health_changed", now, details)
-        if self.on_sensor_health_changed is not None:
+        # Sensor health continues to update while the counter is Ready, but
+        # a reset/ready counter must not generate sensor-health notifications.
+        # The event is still emitted so the health state and event history stay current.
+        if not self.stopped and self.on_sensor_health_changed is not None:
             self.hass.async_create_task(
                 self.on_sensor_health_changed(old_health, health, reason)
             )
@@ -486,7 +489,7 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 max(self.target_degree_days - self.degree_days, 0.0), 3
             ),
             "status": (
-                "stopped"
+                "ready"
                 if self.stopped
                 else "paused"
                 if not self.running
@@ -696,7 +699,7 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.async_set_updated_data(self._data())
 
     async def async_reset(self) -> None:
-        """Reset to the configured initial value and leave the counter stopped."""
+        """Reset to the configured initial value and leave the counter ready."""
         now = dt_util.utcnow()
         self.degree_days = self.initial_degree_days
         self.reached_target = False

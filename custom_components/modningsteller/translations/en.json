@@ -51,7 +51,7 @@
           "running": "Running",
           "paused": "Paused",
           "target_reached": "Target reached",
-          "stopped": "Stopped"
+          "ready": "Ready"
         }
       },
       "expected_finish": {
