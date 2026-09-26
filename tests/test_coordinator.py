@@ -139,10 +139,10 @@ async def test_pause_stops_active_time_and_resume_continues(
     assert coordinator.run_started_at != pause_time
 
 
-async def test_reset_stops_counter_and_next_start_creates_new_run(
+async def test_reset_returns_counter_to_ready_and_next_start_creates_new_run(
     coordinator, freezer
 ) -> None:
-    """Reset returns to the preset and leaves the counter stopped."""
+    """Reset returns to the preset and exposes the Ready status."""
     freezer.move_to("2026-09-14 12:00:00+00:00")
     coordinator.degree_days = 17.5
     coordinator.running = True
@@ -384,6 +384,53 @@ async def test_unavailable_temperature_sensor_uses_last_known_temperature(
     assert coordinator.temperature_sensor_health == "unavailable"
     assert coordinator.degree_days == pytest.approx(8.0 + 5.0 * 2 / 24.0)
     assert coordinator.average_temperature == pytest.approx(5.0)
+
+
+async def test_ready_counter_updates_sensor_health_without_notification(
+    hass: HomeAssistant, coordinator, freezer
+) -> None:
+    """Ready counters update sensor health without creating notifications."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    callback = AsyncMock()
+    coordinator.on_sensor_health_changed = callback
+    coordinator.running = False
+    coordinator.stopped = True
+    coordinator.temperature_sensor_health = "ok"
+    coordinator.last_valid_temperature = 3.5
+    coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(minutes=30)
+    coordinator._startup_grace_active = False
+    hass.states.async_set(
+        "sensor.test_temperature",
+        "unavailable",
+        {"device_class": "temperature"},
+    )
+
+    await coordinator._async_update_data()
+    await hass.async_block_till_done()
+
+    assert coordinator.temperature_sensor_health == "unavailable"
+    assert callback.await_count == 0
+
+
+async def test_paused_counter_still_notifies_on_sensor_health_change(
+    hass: HomeAssistant, coordinator, freezer
+) -> None:
+    """Paused counters continue to generate sensor-health notifications."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    callback = AsyncMock()
+    coordinator.on_sensor_health_changed = callback
+    coordinator.running = False
+    coordinator.stopped = False
+    coordinator.temperature_sensor_health = "ok"
+
+    coordinator._set_sensor_health("stale", dt_util.utcnow(), "reading_too_old")
+    await hass.async_block_till_done()
+
+    assert coordinator.running is False
+    assert coordinator.stopped is False
+    assert coordinator.temperature_sensor_health == "stale"
+    assert callback.await_count == 1
+    assert callback.await_args.args[:2] == ("ok", "stale")
 
 
 async def test_sensor_health_callback_fires_when_health_changes(

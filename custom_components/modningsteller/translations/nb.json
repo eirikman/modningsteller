@@ -51,7 +51,7 @@
           "running": "Pågår",
           "paused": "Pauset",
           "target_reached": "Mål nådd",
-          "stopped": "Stoppet"
+          "ready": "Klar"
         }
       },
       "expected_finish": {

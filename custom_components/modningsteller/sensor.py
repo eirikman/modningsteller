@@ -248,7 +248,7 @@ class StatusSensor(BaseModningstellerSensor):
     @property
     def native_value(self) -> str:
         if self.coordinator.stopped:
-            return "stopped"
+            return "ready"
         if not self.coordinator.running:
             return "paused"
         if self.coordinator.reached_target:
