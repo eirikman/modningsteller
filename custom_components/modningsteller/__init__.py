@@ -6,9 +6,10 @@ from homeassistant.components.persistent_notification import async_create, async
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.start import async_at_started
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.translation import async_get_translations
 
-from .const import DOMAIN
+from .const import DOMAIN, STORAGE_KEY_PREFIX, STORAGE_VERSION
 from .coordinator import ModningstellerCoordinator
 
 PLATFORMS = ["sensor", "button", "number", "text", "select"]
@@ -165,6 +166,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     coordinator.on_target_reached = lambda: _async_target_reached(hass, entry)
+    coordinator.on_target_cleared = lambda: async_dismiss(
+        hass, _notification_id(entry)
+    )
     coordinator.on_sensor_health_changed = (
         lambda old_health, new_health, reason: _async_sensor_health_changed(
             hass, entry, old_health, new_health, reason
@@ -208,3 +212,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             coordinator._startup_retry_task = None
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Remove stored state and notifications when a counter is deleted."""
+    async_dismiss(hass, _notification_id(entry))
+    async_dismiss(hass, _sensor_health_notification_id(entry))
+    await Store(
+        hass, STORAGE_VERSION, f"{STORAGE_KEY_PREFIX}_{entry.entry_id}"
+    ).async_remove()

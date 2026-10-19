@@ -12,6 +12,24 @@
 ---
 
 
+## [v1.4.0]
+
+### Added
+- Test that sets up the whole integration with a real recorder, to catch start-up failures.
+
+### Fixed
+- Temperature history is read through the recorder's database executor, as Home Assistant requires.
+- Deleting a counter removes its stored state and its notifications.
+- Reset, and calibration below a reached target, remove the old target-reached notification.
+- Counting continues with the last known temperature during the startup wait after a Home Assistant restart. Only the sensor status and notification wait for the sensor.
+
+### Changed
+- The one-hour average temperature is time-weighted. Each reading counts for as long as it was the current value, and unavailable periods are left out. Sensors that only report on change no longer skew the average.
+
+
+---
+
+
 ## [v1.3.0]
 
 ### Added
