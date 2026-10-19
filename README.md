@@ -70,7 +70,7 @@ The degree-day calculation depends on the temperature:
 
 This means that temperatures below 4 °C contribute to the maturation process at a reduced, non-linear rate, while temperatures below 0 °C are currently considered to stop the maturation process completely.
 
-The temperature average is calculated over the most recent hour.
+The temperature average is a time-weighted average over the most recent hour. Each reading counts for as long as it was the current value, so a sensor that reports often during short temperature changes does not skew the average. Periods where the sensor was unavailable are left out.
 
 The calculation interval is configurable. The default interval is 10 minutes.
 

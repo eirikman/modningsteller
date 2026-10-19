@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta
+from functools import partial
 import logging
 from typing import Any
 
-from homeassistant.components.recorder import history
+from homeassistant.components.recorder import get_instance, history
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.storage import Store
@@ -86,6 +87,7 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._startup_grace_active = True
         self._startup_retry_task: asyncio.Task[None] | None = None
         self.on_target_reached = None
+        self.on_target_cleared = None
         self.on_sensor_health_changed = None
         self._store = Store(
             hass,
@@ -403,16 +405,19 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # later than Home Assistant itself. While the startup retry window is
         # active, treat an unavailable/invalid live sensor as unknown. This
         # prevents false alarms during startup while allowing genuine sensor
-        # failures to be reported normally afterward.
+        # failures to be reported normally afterward. Only the status and the
+        # notification wait: counting continues with the last known
+        # temperature, so the run does not stop while the sensor starts.
         if self._startup_grace_active and health == "unavailable":
             self._set_sensor_health("unknown", now, "home_assistant_starting")
-            self.average_temperature = None
-            if self.running:
-                self.last_update = now
-            await self._async_save_state()
-            return self._data()
-
-        if health != "ok":
+            if self.last_valid_temperature is None:
+                self.average_temperature = None
+                if self.running:
+                    self.last_update = now
+                await self._async_save_state()
+                return self._data()
+            self.average_temperature = self.last_valid_temperature
+        elif health != "ok":
             self._set_sensor_health(health, now, reason)
             # Continue with the last known valid temperature when one exists.
             if self.last_valid_temperature is None:
@@ -688,6 +693,8 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.reached_target = False
             self.target_reached_at = None
             self.target_notification_sent = False
+            if old_reached and self.on_target_cleared is not None:
+                self.on_target_cleared()
         else:
             self.reached_target = True
 
@@ -765,6 +772,9 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Reset to the configured initial value and leave the counter ready."""
         now = dt_util.utcnow()
         self.degree_days = self.initial_degree_days
+        # The previous run's "target reached" notification no longer applies.
+        if self.on_target_cleared is not None:
+            self.on_target_cleared()
         self.reached_target = False
         self.target_reached_at = None
         self.target_notification_sent = False
@@ -798,52 +808,86 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             history_start = max(history_start, self._temperature_window_start)
 
         try:
-            history_data = await self.hass.async_add_executor_job(
-                history.get_significant_states,
-                self.hass,
-                history_start,
-                now,
-                [self.temperature_entity],
-                None,
-                True,
-                False,
-                False,
-                False,
-                False,
+            # Database access must run in the recorder's own executor.
+            history_data = await get_instance(self.hass).async_add_executor_job(
+                partial(
+                    history.get_significant_states,
+                    self.hass,
+                    history_start,
+                    now,
+                    [self.temperature_entity],
+                    include_start_time_state=True,
+                    significant_changes_only=False,
+                    no_attributes=True,
+                )
             )
         except Exception as err:
             raise UpdateFailed(
                 f"Could not retrieve temperature history for {self.temperature_entity}"
             ) from err
 
-        states = history_data.get(self.temperature_entity, [])
-        temperatures: list[float] = []
-        for state in states:
-            raw_state = state.state if hasattr(state, "state") else state.get("state")
-            try:
-                value = float(raw_state)
-            except (TypeError, ValueError):
-                continue
-            if -100 < value < 100:
-                temperatures.append(value)
+        samples: list[tuple[datetime, float | None]] = [
+            (state.last_updated, self._valid_temperature(state.state))
+            for state in history_data.get(self.temperature_entity, [])
+        ]
 
-        if current_value is None:
-            live_state = self.hass.states.get(self.temperature_entity)
-            if live_state is not None:
-                try:
-                    current_value = float(live_state.state)
-                except (TypeError, ValueError):
-                    current_value = None
+        # The live state can be newer than what the recorder has written.
+        live_state = self.hass.states.get(self.temperature_entity)
+        if current_value is None and live_state is not None:
+            current_value = self._valid_temperature(live_state.state)
+        if current_value is not None:
+            live_time = live_state.last_updated if live_state is not None else now
+            samples.append((live_time, current_value))
 
-        if current_value is not None and -100 < current_value < 100:
-            temperatures.append(current_value)
-
-        if not temperatures:
+        average = self._time_weighted_average(samples, history_start, now)
+        if average is None:
             raise UpdateFailed(
                 f"No valid temperature measurements available for {self.temperature_entity}"
             )
 
-        self.average_temperature = sum(temperatures) / len(temperatures)
+        self.average_temperature = average
+
+    @staticmethod
+    def _valid_temperature(raw_state: Any) -> float | None:
+        """Return a temperature in a plausible range, or None."""
+        try:
+            value = float(raw_state)
+        except (TypeError, ValueError):
+            return None
+        return value if -100 < value < 100 else None
+
+    @staticmethod
+    def _time_weighted_average(
+        samples: list[tuple[datetime, float | None]],
+        start: datetime,
+        end: datetime,
+    ) -> float | None:
+        """Return the time-weighted average temperature between start and end.
+
+        Each sample is valid from its timestamp until the next sample. A
+        sensor that only reports on change would otherwise give too much
+        weight to periods with many small changes. Periods where the sensor
+        was unavailable (None) are left out. Falls back to a plain mean when
+        the samples cover no time, for example a single reading at the end.
+        """
+        ordered = sorted(samples, key=lambda sample: sample[0])
+        weighted_sum = 0.0
+        total_seconds = 0.0
+        for index, (timestamp, value) in enumerate(ordered):
+            if value is None:
+                continue
+            segment_start = max(timestamp, start)
+            segment_end = ordered[index + 1][0] if index + 1 < len(ordered) else end
+            seconds = (min(segment_end, end) - segment_start).total_seconds()
+            if seconds > 0:
+                weighted_sum += value * seconds
+                total_seconds += seconds
+
+        if total_seconds > 0:
+            return weighted_sum / total_seconds
+
+        values = [value for _, value in ordered if value is not None]
+        return sum(values) / len(values) if values else None
 
     async def _async_save_state(self) -> None:
         """Persist the accumulated state."""

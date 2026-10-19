@@ -810,3 +810,50 @@ async def test_update_interval_returns_to_configured_when_paused(
     coordinator._adjust_update_interval()
 
     assert coordinator.update_interval == timedelta(minutes=10)
+
+
+async def test_startup_grace_counts_with_last_known_temperature(
+    hass: HomeAssistant, coordinator, freezer
+) -> None:
+    """After a restart, counting continues while status and alarm wait."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    callback = AsyncMock()
+    coordinator.on_sensor_health_changed = callback
+    coordinator._startup_grace_active = True
+    coordinator.last_valid_temperature = 5.0
+    coordinator.last_valid_temperature_at = dt_util.utcnow() - timedelta(minutes=30)
+    coordinator.last_update = dt_util.utcnow() - timedelta(minutes=20)
+    hass.states.async_set(
+        "sensor.test_temperature",
+        "unavailable",
+        {"device_class": "temperature"},
+    )
+
+    await coordinator._async_update_data()
+    await hass.async_block_till_done()
+
+    assert coordinator.temperature_sensor_health == "unknown"
+    assert coordinator.average_temperature == pytest.approx(5.0)
+    assert coordinator.degree_days == pytest.approx(5.0 * 20 / 1440)
+    assert callback.await_count == 0
+
+
+async def test_startup_grace_without_known_temperature_does_not_count(
+    hass: HomeAssistant, coordinator, freezer
+) -> None:
+    """Without any known temperature there is nothing to count with."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    coordinator._startup_grace_active = True
+    coordinator.last_update = dt_util.utcnow() - timedelta(minutes=20)
+    hass.states.async_set(
+        "sensor.test_temperature",
+        "unavailable",
+        {"device_class": "temperature"},
+    )
+
+    await coordinator._async_update_data()
+
+    assert coordinator.temperature_sensor_health == "unknown"
+    assert coordinator.average_temperature is None
+    assert coordinator.degree_days == pytest.approx(0.0)
+    assert coordinator.last_update == dt_util.utcnow()
