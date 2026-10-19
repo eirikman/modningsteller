@@ -136,6 +136,7 @@
   "common": {
     "notification_target_reached_title": "Maturation target reached: {name}",
     "notification_target_reached_message": "{name} has reached {target_degree_days:.1f} °C·d. The counter will continue. The current value is {degree_days:.1f} °C·d. The one-hour average temperature is {average_temperature:.1f} °C.",
+    "notification_target_reached_message_no_temperature": "{name} has reached {target_degree_days:.1f} °C·d. The counter will continue. The current value is {degree_days:.1f} °C·d. No valid temperature is currently known.",
     "notification_sensor_health_stale_title": "Temperature sensor is stale: {name}",
     "notification_sensor_health_stale_message": "The temperature sensor {sensor} has not received a new value for more than {minutes:.0f} minutes. The counter continues using the last known temperature when available. {last_temperature}",
     "notification_sensor_health_unavailable_title": "Temperature sensor unavailable: {name}",

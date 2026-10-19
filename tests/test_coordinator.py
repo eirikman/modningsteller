@@ -9,7 +9,10 @@ import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from custom_components.modningsteller.const import CONF_TEMPERATURE_ENTITY
+from custom_components.modningsteller.const import (
+    CONF_TARGET_DEGREE_DAYS,
+    CONF_TEMPERATURE_ENTITY,
+)
 from custom_components.modningsteller.coordinator import ModningstellerCoordinator
 
 
@@ -680,3 +683,83 @@ async def test_temperature_sensor_change_refreshes_health_from_new_sensor(
     assert callback.await_count == 2
     assert callback.await_args_list[0].args[:2] == ("stale", "unknown")
     assert callback.await_args_list[1].args[:2] == ("unknown", "ok")
+
+
+async def test_temperature_sensor_change_is_persisted_across_restart(
+    hass: HomeAssistant, coordinator, modning_entry
+) -> None:
+    """A sensor selected from the dashboard survives a Home Assistant restart."""
+    hass.states.async_set(
+        "sensor.other_temperature",
+        "6.5",
+        {"device_class": "temperature"},
+    )
+    coordinator._async_update_average = AsyncMock()
+
+    await coordinator.async_change_temperature_entity("sensor.other_temperature")
+
+    assert modning_entry.options[CONF_TEMPERATURE_ENTITY] == "sensor.other_temperature"
+
+    # A new coordinator is what Home Assistant creates after a restart.
+    restarted = ModningstellerCoordinator(hass, modning_entry)
+    assert restarted.temperature_entity == "sensor.other_temperature"
+
+
+async def test_lowered_target_below_current_value_is_reached_on_reload(
+    hass: HomeAssistant, modning_entry, freezer
+) -> None:
+    """Lowering the target in the options flow marks it reached and notifies."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    hass.config_entries.async_update_entry(
+        modning_entry, options={CONF_TARGET_DEGREE_DAYS: 20.0}
+    )
+    stored = {
+        "degree_days": 23.5,
+        "running": True,
+        "stopped": False,
+        "temperature_entity": "sensor.test_temperature",
+        "target_reached_at": None,
+        "target_notification_sent": False,
+    }
+
+    coordinator = ModningstellerCoordinator(hass, modning_entry)
+    coordinator._store.async_load = AsyncMock(return_value=stored)
+    coordinator._store.async_save = AsyncMock()
+    notify = AsyncMock()
+    coordinator.on_target_reached = notify
+
+    await coordinator._async_setup()
+    await hass.async_block_till_done()
+
+    assert coordinator.reached_target is True
+    assert coordinator.target_reached_at == dt_util.utcnow()
+    assert coordinator.target_notification_sent is True
+    assert coordinator.last_event == "target_reached"
+    assert notify.await_count == 1
+
+
+async def test_ready_counter_above_target_does_not_notify_on_reload(
+    hass: HomeAssistant, modning_entry
+) -> None:
+    """A reset (Ready) counter waits for Start before reporting the target."""
+    hass.config_entries.async_update_entry(
+        modning_entry, options={CONF_TARGET_DEGREE_DAYS: 20.0}
+    )
+    stored = {
+        "degree_days": 23.5,
+        "running": False,
+        "stopped": True,
+        "temperature_entity": "sensor.test_temperature",
+    }
+
+    coordinator = ModningstellerCoordinator(hass, modning_entry)
+    coordinator._store.async_load = AsyncMock(return_value=stored)
+    coordinator._store.async_save = AsyncMock()
+    notify = AsyncMock()
+    coordinator.on_target_reached = notify
+
+    await coordinator._async_setup()
+    await hass.async_block_till_done()
+
+    assert coordinator.target_reached_at is None
+    assert notify.await_count == 0

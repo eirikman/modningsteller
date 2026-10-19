@@ -5,6 +5,11 @@
 ### Added
 
 ### Fixed
+- Temperature sensor selected from the dashboard is persisted again across Home Assistant restarts (regression since v1.1.3).
+- Target-reached notification no longer fails when no average temperature is known.
+- Expected finish time uses the same temperature model as the degree-day accumulation, including the range below 4 °C.
+- Lowering the target below the current value marks the target as reached and sends the notification.
+- Coordinator passes the config entry explicitly, as required by newer Home Assistant versions.
 
 ### Changed
 

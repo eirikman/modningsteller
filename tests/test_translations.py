@@ -95,6 +95,39 @@ async def test_target_notification_uses_translation_catalog(monkeypatch) -> None
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("language", ["en", "nb"])
+async def test_target_notification_without_known_temperature(
+    monkeypatch, language
+) -> None:
+    """Target notification works when no average temperature is known."""
+    hass = MagicMock()
+    hass.config.language = language
+    entry = MagicMock()
+    entry.title = "Rype"
+    coordinator = MagicMock()
+    coordinator.target_degree_days = 40.0
+    coordinator.degree_days = 45.0
+    coordinator.average_temperature = None
+
+    catalog = json.loads(
+        (TRANSLATIONS_DIR / f"{language}.json").read_text(encoding="utf-8")
+    )["common"]
+    translations = {
+        f"component.{DOMAIN}.common.{key}": value for key, value in catalog.items()
+    }
+    monkeypatch.setattr(
+        modningsteller, "async_get_translations", AsyncMock(return_value=translations)
+    )
+
+    title, message = await modningsteller._async_notification_text(
+        hass, entry, coordinator
+    )
+
+    assert "Rype" in title
+    assert "45.0" in message
+
+
+@pytest.mark.asyncio
 async def test_sensor_health_notification_uses_translation_catalog(monkeypatch) -> None:
     """Sensor health notification text comes from Home Assistant translations."""
     hass = MagicMock()

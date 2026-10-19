@@ -77,13 +77,18 @@ async def _async_notification_text(
         "degree_days": coordinator.degree_days,
         "average_temperature": coordinator.average_temperature,
     }
+    # The target can be reached without a known temperature, for example by
+    # calibration while the sensor is unavailable. "{:.1f}" cannot format None.
+    message_key = (
+        "notification_target_reached_message"
+        if coordinator.average_temperature is not None
+        else "notification_target_reached_message_no_temperature"
+    )
     return (
         _format_translation(
             translations, "notification_target_reached_title", placeholders
         ),
-        _format_translation(
-            translations, "notification_target_reached_message", placeholders
-        ),
+        _format_translation(translations, message_key, placeholders),
     )
 
 

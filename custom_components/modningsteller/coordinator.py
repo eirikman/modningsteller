@@ -95,6 +95,7 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f"{DOMAIN}_{entry.entry_id}",
             update_interval=timedelta(minutes=self.update_interval_minutes),
         )
@@ -232,6 +233,20 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not self.reached_target:
                 self.target_reached_at = None
                 self.target_notification_sent = False
+            elif self.target_reached_at is None and not self.stopped:
+                # The target was lowered below the current value in the
+                # options flow. Treat it as reached now, so the event,
+                # timestamp and notification are not silently skipped.
+                self.target_reached_at = now
+                self._set_event(
+                    "target_reached",
+                    now,
+                    {"degree_days": round(self.degree_days, 3), "via": "target_changed"},
+                )
+                if not self.target_notification_sent:
+                    self.target_notification_sent = True
+                    if self.on_target_reached is not None:
+                        self.hass.async_create_task(self.on_target_reached())
 
             if self.run_started_at is None and self.running:
                 self.run_started_at = now
@@ -535,6 +550,11 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         previous_health = self.temperature_sensor_health
 
         self.temperature_entity = new_entity
+        # Persist the dashboard selection in the config entry options so it
+        # survives Home Assistant restarts and is shown in the options flow.
+        options = dict(self.entry.options)
+        options[CONF_TEMPERATURE_ENTITY] = new_entity
+        self.hass.config_entries.async_update_entry(self.entry, options=options)
         self._temperature_window_start = now
         self.last_update = now
         self.average_temperature = None

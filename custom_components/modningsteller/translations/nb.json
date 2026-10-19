@@ -136,6 +136,7 @@
   "common": {
     "notification_target_reached_title": "Mørningsmål nådd: {name}",
     "notification_target_reached_message": "{name} har nådd {target_degree_days:.1f} °C·d. Telleren fortsetter å telle. Nåværende verdi er {degree_days:.1f} °C·d. Middeltemperatur siste time er {average_temperature:.1f} °C.",
+    "notification_target_reached_message_no_temperature": "{name} har nådd {target_degree_days:.1f} °C·d. Telleren fortsetter å telle. Nåværende verdi er {degree_days:.1f} °C·d. Ingen gyldig temperatur er kjent for øyeblikket.",
     "notification_sensor_health_stale_title": "Temperatursensor reagerer ikke: {name}",
     "notification_sensor_health_stale_message": "Temperatursensoren {sensor} har ikke fått en ny verdi på mer enn {minutes:.0f} minutter. Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes. {last_temperature}",
     "notification_sensor_health_unavailable_title": "Temperatursensor utilgjengelig: {name}",
