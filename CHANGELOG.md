@@ -3,6 +3,7 @@
 ## [unreleased]
 
 ### Added
+- Update every minute when the estimated time to the target is shorter than the configured update interval.
 
 ### Fixed
 - Temperature sensor selected from the dashboard is persisted again across Home Assistant restarts (regression since v1.1.3).

@@ -763,3 +763,50 @@ async def test_ready_counter_above_target_does_not_notify_on_reload(
 
     assert coordinator.target_reached_at is None
     assert notify.await_count == 0
+
+
+@pytest.mark.parametrize(
+    ("degree_days", "expected_interval"),
+    [
+        (39.99, timedelta(minutes=1)),  # About 2 minutes left at 8 C
+        (30.0, timedelta(minutes=10)),  # About 30 hours left at 8 C
+        (40.5, timedelta(minutes=10)),  # Target already reached
+    ],
+)
+async def test_update_interval_is_one_minute_close_to_target(
+    hass: HomeAssistant, coordinator, freezer, degree_days, expected_interval
+) -> None:
+    """Update every minute when the target is due before the next update."""
+    freezer.move_to("2026-09-14 12:00:00+00:00")
+    hass.states.async_set(
+        "sensor.test_temperature",
+        "8.0",
+        {"device_class": "temperature"},
+    )
+    coordinator._startup_grace_active = False
+    coordinator.degree_days = degree_days
+    coordinator.last_update = dt_util.utcnow()
+
+    async def set_average(now, current_value=None):
+        coordinator.average_temperature = 8.0
+
+    coordinator._async_update_average = AsyncMock(side_effect=set_average)
+
+    await coordinator._async_update_data()
+
+    assert coordinator.update_interval == expected_interval
+
+
+async def test_update_interval_returns_to_configured_when_paused(
+    hass: HomeAssistant, coordinator
+) -> None:
+    """A paused counter goes back to the configured update interval."""
+    coordinator.degree_days = 39.99
+    coordinator.average_temperature = 8.0
+    coordinator._adjust_update_interval()
+    assert coordinator.update_interval == timedelta(minutes=1)
+
+    coordinator.running = False
+    coordinator._adjust_update_interval()
+
+    assert coordinator.update_interval == timedelta(minutes=10)

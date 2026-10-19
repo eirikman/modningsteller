@@ -221,27 +221,16 @@ class ExpectedFinishSensor(BaseModningstellerSensor):
         if self.coordinator.reached_target:
             return self.coordinator.target_reached_at
 
-        average_temperature = self.coordinator.average_temperature
-        if average_temperature is None:
-            return None
-
-        # Use the same temperature model as the accumulation, so the estimate
-        # is also correct in the low-temperature range below 4 °C.
-        degree_days_per_day = self.coordinator._calculate_degree_days(
-            average_temperature, 86400
-        )
-        if degree_days_per_day <= 0:
-            return None
-
-        remaining_degree_days = max(
-            self.coordinator.target_degree_days - self.coordinator.degree_days, 0.0
-        )
-        if remaining_degree_days <= 0:
+        if self.coordinator.degree_days >= self.coordinator.target_degree_days:
             return self.coordinator.target_reached_at
 
-        now = dt_util.now()
-        days_remaining = remaining_degree_days / degree_days_per_day
-        return now + timedelta(days=days_remaining)
+        # Uses the same temperature model as the accumulation, so the estimate
+        # is also correct in the low-temperature range below 4 °C.
+        seconds_to_target = self.coordinator.estimated_seconds_to_target()
+        if seconds_to_target is None:
+            return None
+
+        return dt_util.now() + timedelta(seconds=seconds_to_target)
 
 
 class StatusSensor(BaseModningstellerSensor):
