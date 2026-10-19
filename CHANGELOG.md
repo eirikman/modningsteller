@@ -5,6 +5,16 @@
 ### Added
 
 ### Fixed
+
+### Changed
+
+
+---
+
+
+## [v1.5.0]
+
+### Fixed
 - Changing the temperature sensor in Configure works like changing it from the dashboard: the interval with the old sensor is counted, and the change is recorded in the event and sensor-change history.
 - Saving options in Configure no longer loses the counting since the last update when the integration reloads.
 - Temperature sensors that have not reported a value yet can be selected from the dashboard list, instead of failing.
