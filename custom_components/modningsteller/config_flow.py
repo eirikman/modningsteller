@@ -8,6 +8,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import selector
 
 from .const import (
@@ -27,6 +28,7 @@ from .const import (
     MIN_TARGET_DEGREE_DAYS,
     MIN_UPDATE_INTERVAL,
 )
+from .coordinator import async_own_entity_ids
 
 
 def _sensor_stale_minutes_selector() -> selector.NumberSelector:
@@ -49,8 +51,20 @@ class ModningstellerOptionsFlowHandler(config_entries.OptionsFlowWithReload):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         """Allow changing runtime settings."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Change the sensor the same way as from the dashboard: close the
+            # interval with the old sensor and record the change, before the
+            # options are saved and the integration reloads.
+            coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
+            new_entity = user_input[CONF_TEMPERATURE_ENTITY]
+            if coordinator is not None and new_entity != coordinator.temperature_entity:
+                try:
+                    await coordinator.async_change_temperature_entity(new_entity)
+                except ServiceValidationError:
+                    errors[CONF_TEMPERATURE_ENTITY] = "invalid_temperature_sensor"
+            if not errors:
+                return self.async_create_entry(title="", data=user_input)
 
         current = self.config_entry.options
         data = self.config_entry.data
@@ -61,7 +75,11 @@ class ModningstellerOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                     CONF_TEMPERATURE_ENTITY,
                     default=current.get(CONF_TEMPERATURE_ENTITY, data[CONF_TEMPERATURE_ENTITY]),
                 ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                    selector.EntitySelectorConfig(
+                        domain="sensor",
+                        device_class="temperature",
+                        exclude_entities=async_own_entity_ids(self.hass),
+                    )
                 ),
                 vol.Required(
                     CONF_INITIAL_DEGREE_DAYS,
@@ -87,7 +105,7 @@ class ModningstellerOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                 ): _sensor_stale_minutes_selector(),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -114,7 +132,11 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
                 ),
                 vol.Required(CONF_TEMPERATURE_ENTITY): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="sensor", device_class="temperature")
+                    selector.EntitySelectorConfig(
+                        domain="sensor",
+                        device_class="temperature",
+                        exclude_entities=async_own_entity_ids(self.hass),
+                    )
                 ),
                 vol.Required(CONF_INITIAL_DEGREE_DAYS, default=DEFAULT_INITIAL_DEGREE_DAYS): selector.NumberSelector(
                     selector.NumberSelectorConfig(min=0, max=10000, step=0.1, mode=selector.NumberSelectorMode.BOX, unit_of_measurement="°C·d")

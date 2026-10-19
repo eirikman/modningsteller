@@ -127,7 +127,10 @@ async def _async_sensor_health_changed(
     reason: str | None,
 ) -> None:
     """Create or clear a persistent notification when sensor health changes."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if coordinator is None:
+        # The entry was unloaded before this task ran.
+        return
     notification_id = _sensor_health_notification_id(entry)
     if new_health in {"unavailable", "stale"}:
         title, message = await _async_sensor_health_notification_text(
@@ -143,9 +146,14 @@ async def _async_sensor_health_changed(
         async_dismiss(hass, notification_id)
 
 
-async def _async_target_reached(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Notify that a maturation counter reached its target."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+async def _async_target_reached(
+    hass: HomeAssistant, entry: ConfigEntry, coordinator: ModningstellerCoordinator
+) -> None:
+    """Notify that a maturation counter reached its target.
+
+    The coordinator is passed in, because the target can be reached while the
+    entry is being unloaded, after it has been removed from hass.data.
+    """
     title, message = await _async_notification_text(hass, entry, coordinator)
 
     async_create(
@@ -165,7 +173,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # callbacks must be able to resolve the coordinator from hass.data.
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    coordinator.on_target_reached = lambda: _async_target_reached(hass, entry)
+    coordinator.on_target_reached = lambda: _async_target_reached(
+        hass, entry, coordinator
+    )
     coordinator.on_target_cleared = lambda: async_dismiss(
         hass, _notification_id(entry)
     )
@@ -198,6 +208,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a Modningsteller config entry."""
+    coordinator = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if coordinator is not None:
+        # Count and save up to now, so a reload (for example after saving
+        # options) does not lose the time since the last update.
+        await coordinator.async_flush()
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         coordinator = hass.data[DOMAIN].get(entry.entry_id)
