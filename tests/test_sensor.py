@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
+
+import pytest
 
 from homeassistant.util import dt as dt_util
 
 from custom_components.modningsteller.sensor import (
     DegreeDaySensor,
+    ExpectedFinishSensor,
     LastEventSensor,
     TemperatureSensorHealthSensor,
 )
@@ -75,3 +78,36 @@ def test_temperature_health_attribute_names(coordinator) -> None:
         "last_temperature_age_seconds",
         "sensor_stale_after_seconds",
     }
+
+
+@pytest.mark.parametrize(
+    ("temperature", "expected_days"),
+    [
+        (0.0, 10.0),  # 1.0 degree day per day
+        (2.0, 10.0 / 1.6),  # 40 / (40 - 7.5 * 2) = 1.6
+        (8.0, 10.0 / 8.0),
+    ],
+)
+def test_expected_finish_uses_temperature_model(
+    coordinator, freezer, temperature, expected_days
+) -> None:
+    """Expected finish uses the same low-temperature model as accumulation."""
+    freezer.move_to("2026-09-20 12:00:00+00:00")
+    coordinator.running = True
+    coordinator.degree_days = 30.0
+    coordinator.target_degree_days = 40.0
+    coordinator.average_temperature = temperature
+
+    finish = ExpectedFinishSensor(coordinator).native_value
+
+    assert finish is not None
+    assert (finish - dt_util.now()) / timedelta(days=1) == pytest.approx(expected_days)
+
+
+def test_expected_finish_is_unknown_below_freezing(coordinator) -> None:
+    """No maturation below 0 C means no expected finish time."""
+    coordinator.running = True
+    coordinator.degree_days = 30.0
+    coordinator.average_temperature = -1.0
+
+    assert ExpectedFinishSensor(coordinator).native_value is None

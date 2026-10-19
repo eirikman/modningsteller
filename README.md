@@ -74,6 +74,8 @@ The temperature average is calculated over the most recent hour.
 
 The calculation interval is configurable. The default interval is 10 minutes.
 
+When the estimated time to the target is shorter than the configured interval, the counter temporarily updates every minute, so the target time and notification are accurate. It returns to the configured interval when the target is reached or the counter is paused.
+
 The target value is a notification threshold, not a stopping point. When the target is reached:
 
 1. The target is marked as reached.

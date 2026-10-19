@@ -9,7 +9,7 @@ from typing import Any
 
 from homeassistant.components.recorder import history
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -25,6 +25,7 @@ from .const import (
     MIN_SENSOR_STALE_MINUTES,
     MAX_SENSOR_STALE_MINUTES,
     DOMAIN,
+    FAST_UPDATE_INTERVAL_MINUTES,
     STORAGE_KEY_PREFIX,
     STORAGE_VERSION,
 )
@@ -95,6 +96,7 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f"{DOMAIN}_{entry.entry_id}",
             update_interval=timedelta(minutes=self.update_interval_minutes),
         )
@@ -232,6 +234,20 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not self.reached_target:
                 self.target_reached_at = None
                 self.target_notification_sent = False
+            elif self.target_reached_at is None and not self.stopped:
+                # The target was lowered below the current value in the
+                # options flow. Treat it as reached now, so the event,
+                # timestamp and notification are not silently skipped.
+                self.target_reached_at = now
+                self._set_event(
+                    "target_reached",
+                    now,
+                    {"degree_days": round(self.degree_days, 3), "via": "target_changed"},
+                )
+                if not self.target_notification_sent:
+                    self.target_notification_sent = True
+                    if self.on_target_reached is not None:
+                        self.hass.async_create_task(self.on_target_reached())
 
             if self.run_started_at is None and self.running:
                 self.run_started_at = now
@@ -298,7 +314,49 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Read temperature history and accumulate degree days."""
-        return await self._async_update_data_internal(accumulate=True)
+        data = await self._async_update_data_internal(accumulate=True)
+        self._adjust_update_interval()
+        return data
+
+    @callback
+    def async_set_updated_data(self, data: dict[str, Any]) -> None:
+        """Publish new data, using the update interval for the new state."""
+        self._adjust_update_interval()
+        super().async_set_updated_data(data)
+
+    def estimated_seconds_to_target(self) -> float | None:
+        """Return the estimated time until the target, or None if unknown.
+
+        Uses the same temperature model as the accumulation. Returns None
+        when the counter is not running, the target is already reached, or
+        no maturation happens at the current average temperature.
+        """
+        if not self.running or self.reached_target or self.average_temperature is None:
+            return None
+        degree_days_per_day = self._calculate_degree_days(self.average_temperature, 86400)
+        if degree_days_per_day <= 0:
+            return None
+        remaining_degree_days = max(self.target_degree_days - self.degree_days, 0.0)
+        return remaining_degree_days / degree_days_per_day * 86400
+
+    def _adjust_update_interval(self) -> None:
+        """Update every minute when the target is due before the next update.
+
+        With the configured interval, the target could be passed by up to one
+        interval before it is detected. Close to the target, a one-minute
+        interval makes the target time and notification more accurate.
+        """
+        configured = timedelta(minutes=self.update_interval_minutes)
+        fast = timedelta(minutes=FAST_UPDATE_INTERVAL_MINUTES)
+        seconds_to_target = self.estimated_seconds_to_target()
+        if (
+            configured > fast
+            and seconds_to_target is not None
+            and seconds_to_target < configured.total_seconds()
+        ):
+            self.update_interval = fast
+        else:
+            self.update_interval = configured
 
     async def _async_update_data_internal(self, *, accumulate: bool) -> dict[str, Any]:
         """Refresh temperature status and optionally accumulate process time."""
@@ -535,6 +593,11 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         previous_health = self.temperature_sensor_health
 
         self.temperature_entity = new_entity
+        # Persist the dashboard selection in the config entry options so it
+        # survives Home Assistant restarts and is shown in the options flow.
+        options = dict(self.entry.options)
+        options[CONF_TEMPERATURE_ENTITY] = new_entity
+        self.hass.config_entries.async_update_entry(self.entry, options=options)
         self._temperature_window_start = now
         self.last_update = now
         self.average_temperature = None

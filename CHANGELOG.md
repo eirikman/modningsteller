@@ -12,6 +12,49 @@
 ---
 
 
+## [v1.3.0]
+
+### Added
+- Update every minute when the estimated time to the target is shorter than the configured update interval.
+
+### Fixed
+- Temperature sensor selected from the dashboard is persisted again across Home Assistant restarts (regression since v1.1.3).
+- Target-reached notification no longer fails when no average temperature is known.
+- Expected finish time uses the same temperature model as the degree-day accumulation, including the range below 4 °C.
+- Lowering the target below the current value marks the target as reached and sends the notification.
+- Coordinator passes the config entry explicitly, as required by newer Home Assistant versions.
+
+### Changed
+- Tests check that the manifest version has a matching CHANGELOG entry, and releases check that the tag matches the manifest version.
+
+
+---
+
+
+## [v1.2.1]
+
+### Changed
+- Status after reset is now called Ready (Klar) instead of Stopped.
+- Sensor health notifications are no longer sent while the counter is Ready. Sensor health is still updated.
+- State attribute names are now English (for example `mål` → `target_degree_days`). Templates and automations that read the old Norwegian attribute names must be updated.
+- Remaining Norwegian text in the code moved to the translation files.
+
+
+---
+
+
+## [v1.2.0]
+
+### Changed
+- New degree-day model for temperatures below 4 °C, to reflect slower biological processes:
+  - At or above 4 °C: degree days += average temperature × elapsed days
+  - Between 0 °C and 4 °C: degree days += 40 / (40 − 7.5 × average temperature) × elapsed days
+  - Below 0 °C: no degree days are accumulated
+
+
+---
+
+
 ## [v1.1.4]
 
 ### Added
