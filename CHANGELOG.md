@@ -5,6 +5,19 @@
 ### Added
 
 ### Fixed
+
+### Changed
+
+
+---
+
+
+## [v1.4.0]
+
+### Added
+- Test that sets up the whole integration with a real recorder, to catch start-up failures.
+
+### Fixed
 - Temperature history is read through the recorder's database executor, as Home Assistant requires.
 - Deleting a counter removes its stored state and its notifications.
 - Reset, and calibration below a reached target, remove the old target-reached notification.
