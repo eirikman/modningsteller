@@ -5,8 +5,15 @@
 ### Added
 
 ### Fixed
+- Changing the temperature sensor in Configure works like changing it from the dashboard: the interval with the old sensor is counted, and the change is recorded in the event and sensor-change history.
+- Saving options in Configure no longer loses the counting since the last update when the integration reloads.
+- Temperature sensors that have not reported a value yet can be selected from the dashboard list, instead of failing.
+- Choosing an entity that is not a temperature sensor shows a translated error message.
+- Modningsteller's own average temperature sensors can no longer be chosen as the temperature sensor, in the dashboard list, in Configure or in the initial setup.
 
 ### Changed
+- The dashboard sensor list only shows temperature sensors that measure (state class `measurement`), which leaves out set points such as a car's set temperature. The selected sensor is always kept in the list.
+- The dashboard sensor list always shows the area in parentheses when the sensor has one, also when it is inherited from the sensor's device or already part of the name.
 
 
 ---

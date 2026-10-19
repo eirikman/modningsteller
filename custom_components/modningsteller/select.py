@@ -6,7 +6,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.components.select import SelectEntity
+from homeassistant.components.sensor import SensorStateClass
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -91,7 +93,7 @@ class TemperatureSensorSelect(
 
     @callback
     def _sensor_display_name(self, entity_id: str) -> str:
-        """Return a user-friendly sensor name, including the area when useful."""
+        """Return a user-friendly sensor name, with the area when it has one."""
         entity_registry = er.async_get(self.hass)
         entity_entry = entity_registry.async_get(entity_id)
         state = self.hass.states.get(entity_id)
@@ -103,10 +105,19 @@ class TemperatureSensorSelect(
         else:
             name = entity_id
 
-        if entity_entry is not None and entity_entry.area_id:
+        # Most entities inherit the area from their device and have no area
+        # of their own, so fall back to the device's area.
+        area_id = entity_entry.area_id if entity_entry is not None else None
+        if area_id is None and entity_entry is not None and entity_entry.device_id:
+            device = dr.async_get(self.hass).async_get(entity_entry.device_id)
+            area_id = device.area_id if device is not None else None
+
+        if area_id:
             area_registry = ar.async_get(self.hass)
-            area = area_registry.async_get_area(entity_entry.area_id)
-            if area and area.name and area.name.lower() not in name.lower():
+            area = area_registry.async_get_area(area_id)
+            # Always add the area, also when the name already contains it, so
+            # the list is consistent.
+            if area and area.name:
                 name = f"{name} ({area.name})"
 
         return name
@@ -125,12 +136,28 @@ class TemperatureSensorSelect(
                 continue
             if (entry.device_class or entry.original_device_class) != "temperature":
                 continue
+            # Modningsteller's own average temperature sensors would make a
+            # counter measure its own (or another counter's) average.
+            if entry.platform == DOMAIN:
+                continue
+            state = self.hass.states.get(entity_id)
+            state_class = (
+                state.attributes.get("state_class")
+                if state is not None
+                else (entry.capabilities or {}).get("state_class")
+            )
+            if state_class != SensorStateClass.MEASUREMENT:
+                continue
             entities[entity_id] = self._sensor_display_name(entity_id)
 
         # Also include temperature sensors that are currently in the state
         # machine but are not registered (for example some legacy/YAML entities).
         for state in self.hass.states.async_all("sensor"):
+            if entity_registry.async_get(state.entity_id) is not None:
+                continue  # Already judged above.
             if state.attributes.get("device_class") != "temperature":
+                continue
+            if state.attributes.get("state_class") != SensorStateClass.MEASUREMENT:
                 continue
             entities[state.entity_id] = self._sensor_display_name(state.entity_id)
 

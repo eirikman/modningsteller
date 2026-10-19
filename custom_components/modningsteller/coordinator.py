@@ -11,6 +11,8 @@ from typing import Any
 from homeassistant.components.recorder import get_instance, history
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -32,6 +34,16 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@callback
+def async_own_entity_ids(hass: HomeAssistant) -> list[str]:
+    """Return the entity IDs created by Modningsteller itself."""
+    return [
+        entry.entity_id
+        for entry in er.async_get(hass).entities.values()
+        if entry.platform == DOMAIN
+    ]
 
 
 class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -444,23 +456,8 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     return self._data()
                 self.average_temperature = self.last_valid_temperature
 
-        if accumulate and self.running and self.last_update is not None and self.average_temperature is not None:
-            elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
-            self.active_seconds += elapsed_seconds
-            self.degree_days += self._calculate_degree_days(
-                self.average_temperature, elapsed_seconds
-            )
-
-            # The target is a notification threshold, not a stop condition.
-            if self.degree_days >= self.target_degree_days and not self.reached_target:
-                self.reached_target = True
-                self.target_reached_at = now
-                self._set_event("target_reached", now, {"degree_days": round(self.degree_days, 3)})
-                if not self.target_notification_sent:
-                    self.target_notification_sent = True
-                    if self.on_target_reached is not None:
-                        self.hass.async_create_task(self.on_target_reached())
-            self.last_update = now
+        if accumulate:
+            self._accumulate_until(now)
 
         if (
             self._temperature_window_start is not None
@@ -471,6 +468,55 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         await self._async_save_state()
         return self._data()
+
+    def _accumulate_until(self, now: datetime) -> None:
+        """Add degree days and active time from the last update until now."""
+        if not self.running or self.last_update is None or self.average_temperature is None:
+            return
+        elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
+        self.active_seconds += elapsed_seconds
+        self.degree_days += self._calculate_degree_days(
+            self.average_temperature, elapsed_seconds
+        )
+
+        # The target is a notification threshold, not a stop condition.
+        if self.degree_days >= self.target_degree_days and not self.reached_target:
+            self.reached_target = True
+            self.target_reached_at = now
+            self._set_event("target_reached", now, {"degree_days": round(self.degree_days, 3)})
+            if not self.target_notification_sent:
+                self.target_notification_sent = True
+                if self.on_target_reached is not None:
+                    self.hass.async_create_task(self.on_target_reached())
+        self.last_update = now
+
+    async def async_flush(self) -> None:
+        """Count up to now and save, before the integration is unloaded.
+
+        Saving options in "Configure" reloads the integration. Without this,
+        up to one update interval of counting would be lost on each reload.
+        """
+        self._accumulate_until(dt_util.utcnow())
+        await self._async_save_state()
+
+    def is_temperature_sensor(self, entity_id: str) -> bool:
+        """Return True if the entity is a temperature sensor.
+
+        Uses the entity registry as well as the live state, so a sensor that
+        has not reported a value yet (for example during startup) is accepted.
+        """
+        if not entity_id.startswith("sensor."):
+            return False
+        registry_entry = er.async_get(self.hass).async_get(entity_id)
+        if registry_entry is not None and registry_entry.platform == DOMAIN:
+            # A counter must not measure its own or another counter's average.
+            return False
+        state = self.hass.states.get(entity_id)
+        if state is not None and state.attributes.get("device_class") == "temperature":
+            return True
+        return registry_entry is not None and (
+            registry_entry.device_class or registry_entry.original_device_class
+        ) == "temperature"
 
     @staticmethod
     def _calculate_degree_days(temperature: float, elapsed_seconds: float) -> float:
@@ -571,29 +617,19 @@ class ModningstellerCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if new_entity == self.temperature_entity:
             return
 
-        state = self.hass.states.get(new_entity)
-        if state is None or (state.attributes.get("device_class") != "temperature" and new_entity != self.temperature_entity):
-            raise ValueError("Selected entity is not a temperature sensor")
+        if not self.is_temperature_sensor(new_entity):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="invalid_temperature_sensor",
+                translation_placeholders={"entity_id": new_entity},
+            )
 
         now = dt_util.utcnow()
         old_entity = self.temperature_entity
 
         # Close the active interval with the old sensor before switching, so
         # time is not lost and old/new sensor history is never mixed.
-        if self.running and self.last_update is not None and self.average_temperature is not None:
-            elapsed_seconds = max((now - self.last_update).total_seconds(), 0.0)
-            self.active_seconds += elapsed_seconds
-            self.degree_days += self._calculate_degree_days(
-                self.average_temperature, elapsed_seconds
-            )
-            if self.degree_days >= self.target_degree_days and not self.reached_target:
-                self.reached_target = True
-                self.target_reached_at = now
-                self._set_event("target_reached", now, {"degree_days": round(self.degree_days, 3)})
-                if not self.target_notification_sent:
-                    self.target_notification_sent = True
-                    if self.on_target_reached is not None:
-                        self.hass.async_create_task(self.on_target_reached())
+        self._accumulate_until(now)
 
         previous_health = self.temperature_sensor_health
 

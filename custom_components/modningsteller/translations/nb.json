@@ -23,7 +23,7 @@
     "step": {
       "init": {
         "title": "Konfigurer mørningsteller",
-        "description": "Endre temperatursensor eller innstillinger for telleren.",
+        "description": "Endre temperatursensor eller innstillinger for telleren. Ved bytte av sensor beholdes modningen og døgngradene, akkurat som ved bytte fra dashbordet.",
         "data": {
           "temperature_entity": "Temperatursensor",
           "initial_degree_days": "Startverdi",
@@ -35,6 +35,9 @@
           "sensor_stale_minutes": "Minutter uten ny temperaturverdi før sensoren merkes som utdatert. Telleren fortsetter med siste kjente temperatur når denne finnes."
         }
       }
+    },
+    "error": {
+      "invalid_temperature_sensor": "Den valgte entiteten er ikke en temperatursensor."
     }
   },
   "entity": {
@@ -143,5 +146,10 @@
     "notification_sensor_health_unavailable_message": "Temperatursensoren {sensor} er utilgjengelig eller har en ugyldig verdi. Døgngradtellingen fortsetter med siste kjente temperatur når denne finnes. {last_temperature}",
     "notification_last_temperature_known": "Siste kjente temperatur er {temperature:.1f} °C.",
     "notification_last_temperature_unknown": "Ingen gyldig temperatur er kjent."
+  },
+  "exceptions": {
+    "invalid_temperature_sensor": {
+      "message": "{entity_id} er ikke en temperatursensor."
+    }
   }
 }
