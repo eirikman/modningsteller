@@ -3,6 +3,7 @@
 ## [unreleased]
 
 ### Added
+- Brand logo for light and dark themes, in the style of the ptarmigan icon.
 
 ### Fixed
 
